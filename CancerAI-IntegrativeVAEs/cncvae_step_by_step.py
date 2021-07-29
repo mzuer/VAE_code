@@ -235,9 +235,18 @@ assert np.array_equal(pred_results[0], pred_results2[1])
 assert np.array_equal(pred_results[1], pred_results2[2])
 # assert np.array_equal(pred_results[2], pred_results2[0]) not true because random sample step
 
+import pickle
+filename = 'stepByStep_figures/emb_train.sav'
+pickle.dump(emb_train, open(filename, 'wb'))
 
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 
+
+### example how to subset randomly dataset
+# Split 10% test set randomly
+# test_set_percent = 0.1
+# rnaseq_test_df = rnaseq_df.sample(frac=test_set_percent)
+# rnaseq_train_df = rnaseq_df.drop(rnaseq_test_df.index)
 
 # see chapter 2 of Learn Keras for Deep Neural Networks 
 # http://devpyjp.com/wp-content/uploads/2020/09/2_5300941824628622714.pdf
@@ -250,7 +259,10 @@ print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time())
 # and the entire table/matrix will be m samples. 
 # in DL experiments, 
 # it is common notation to use one training sample in a column. 
-# 
+# You could also reverse the representation of training samples 
+# (i.e., each row could be one training sample), so in the context of the 
+# student passing/failing in the test example, one row would indicate all 
+# the attributes of one student (his marks, age, etc.). 
 # 
 # https://keras.io/api/layers/core_layers/dense/
 # Keras Dense Layer
@@ -275,7 +287,7 @@ print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time())
 # then keras will create an input layer to insert before the current layer.
 #  This can be treated equivalent to explicitly defining an InputLayer.
 #  
-#  why tensorflow backend
+#  why tensorflow backend - from stack overflow
 #  
 #    1- At the beginning of Keras, the overlap with Tensorflow was small. Tensorflow
  # was a bit difficult to use, and Keras simplified it a lot.
@@ -294,3 +306,20 @@ print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time())
 #  keras.backend to actually run the convolution computation; depending on the Keras 
 #  configuration file, this backend is set to use the Tensorflow backend implementation 
 #  in keras.backend.tensorflow_backend.py; this Keras file just invokes Tensorflow to compute the convolution
+
+
+# https://faroit.com/keras-docs/1.2.0/backend/
+# What is a "backend"?
+# 
+# Keras is a model-level library, providing high-level building blocks for developing deep learning models.
+#  It does not handle itself low-level operations such as tensor products, convolutions and so on. 
+#  Instead, it relies on a specialized, well-optimized tensor manipulation library to do so,
+#  serving as the "backend engine" of Keras. Rather than picking one single tensor library and 
+#  making the implementation of Keras tied to that library, Keras handles the problem in a modular way, 
+#  and several different backend engines can be plugged seamlessly into Keras.
+# 
+# At this time, Keras has two backend implementations available: the TensorFlow backend and the Theano backend.
+# 
+#     TensorFlow is an open-source symbolic tensor manipulation framework developed by Google, Inc.
+#     Theano is an open-source symbolic tensor manipulation framework developed by LISA/MILA Lab at Université de Montréal.
+

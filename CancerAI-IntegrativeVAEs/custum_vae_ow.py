@@ -1,27 +1,14 @@
-#
-import datetime
-start_time = str(datetime.datetime.now().time())
-print('> START: ' + start_time)
-
-
 from tensorflow.keras import backend as K
 from tensorflow.keras import optimizers
 from tensorflow.keras.layers import BatchNormalization as BN, Concatenate, Dense, Input, Lambda,Dropout
 from tensorflow.keras.models import Model
-
-from keras.utils.vis_utils import plot_model
-
 
 import tensorflow as tf
 import numpy as np
 
 import os
 import sys
-#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
-module_path = r'/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/code'
-
-os.chdir('/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/')
-
+module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
 if module_path not in sys.path:
     sys.path.append(module_path)
 
@@ -29,7 +16,7 @@ from models.common import sse, bce, mmd, sampling, kl_regu
 from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
 import numpy as np
 
-import pickle
+
 
 from misc.dataset import Dataset, DatasetWhole
 from misc.helpers import normalizeRNA,save_embedding
@@ -41,13 +28,10 @@ class CNCVAE:
         self.args = args
         self.vae = None
         self.encoder = None
-        
-        self.decoder=None
 
     def build_model(self):
         np.random.seed(42)
-        # tf.random.set_random_seed(42)   # moved to (not able to install tensorflow 1.11)
-        tf.random.set_seed(42)
+        tf.random.set_random_seed(42)
         # Build the encoder network
         # ------------ Input -----------------
         inputs = Input(shape=(self.args.input_size,), name='concat_input')
@@ -59,21 +43,10 @@ class CNCVAE:
 
         # ------------ Embedding Layer --------------
         z_mean = Dense(self.args.ls, name='z_mean')(x)
-        filename = 'dissect_results/z_mean.sav'
-        #z_mean.save(filename)
-        pickle.dump(z_mean, open(filename, 'wb'))
-    
         z_log_sigma = Dense(self.args.ls, name='z_log_sigma', kernel_initializer='zeros')(x)
-        #pickle.dump(self.encoder, open(filename, 'wb'))
-        #joblib.dump(self.encoder, filename)
-
         z = Lambda(sampling, output_shape=(self.args.ls,), name='z')([z_mean, z_log_sigma])
 
         self.encoder = Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
-        filename = 'dissect_results/encoder.sav'
-        #pickle.dump(self.encoder, open(filename, 'wb'))
-        #joblib.dump(self.encoder, filename)
-        self.encoder.save(filename)
         self.encoder.summary()
 
         # Build the decoder network
@@ -81,8 +54,6 @@ class CNCVAE:
         latent_inputs = Input(shape=(self.args.ls,), name='z_sampling')
         x = latent_inputs
         x = Dense(self.args.ds, activation=self.args.act)(x)
-        filename = 'dissect_results/x.sav'
-        pickle.dump(x, open(filename, 'wb'))
         x = BN()(x)
         
         x=Dropout(self.args.dropout)(x)
@@ -95,28 +66,11 @@ class CNCVAE:
         concat_out = Dense(self.args.input_size)(x)
         
         decoder = Model(latent_inputs, concat_out, name='decoder')
-        filename = 'dissect_results/decoder.sav'
-        #pickle.dump(decoder, open(filename, 'wb'))
-        decoder.save(filename)
         decoder.summary()
-        
-        self.decoder=decoder
 
         outputs = decoder(self.encoder(inputs)[2])
         self.vae = Model(inputs, outputs, name='vae_mlp')
-        filename = 'dissect_results/vae.sav'
-        self.vae.save(filename)
-        
-        output_model_file = os.path.join('dissect_results', 'cncvae_architecture.png')
-        plot_model(self.vae, to_file=output_model_file)
-        
-        output_model_file = os.path.join('dissect_results', 'encoder_architecture.png')
-        plot_model(self.encoder, to_file=output_model_file)
 
-        output_model_file = os.path.join('dissect_results', 'decoder_architecture.png')
-        plot_model(self.decoder, to_file=output_model_file)
-
-        
         # Define the loss
         if self.args.distance == "mmd":
             true_samples = K.random_normal(K.stack([self.args.bs, self.args.ls]))
@@ -135,21 +89,19 @@ class CNCVAE:
         adam = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.001, amsgrad=False)
         self.vae.compile(optimizer=adam)
         self.vae.summary()
-        
-        with open('dissect_results/modelsummary.txt', 'w') as f:
-            self.vae.summary(print_fn=lambda x: f.write(x + '\n'))
 
     def train(self, s_train, s_test):
         train = s_train#np.concatenate((s1_train,s2_train), axis=-1)
         test = s_test#np.concatenate((s1_test,s2_test), axis=-1)
         self.vae.fit(train, epochs=self.args.epochs, batch_size=self.args.bs, shuffle=True, validation_data=(test, None))
         if self.args.save_model:
-            #self.vae.save_weights('./models/vae_cncvae.h5')
-            self.vae.save_weights(out_model_file)
+            self.vae.save_weights('./models/vae_cncvae.h5')
 
     def predict(self, s_data):
 
         return self.encoder.predict(s_data, batch_size=self.args.bs)[0]
+
+
 
 
 
@@ -165,25 +117,11 @@ args.ds = 256 # The intermediate dense layers size
 args.distance = 'mmd'
 args.beta = 1
         
-
-# Exponential Linear Unit (ELU) is a popular activation function that speeds up
-#  learning and produces more accurate results. 
-# ELU is an activation function based on ReLU that has an extra alpha constant (α) 
-# that defines function smoothness when inputs are negative. 
-# the negative part is not == 0; the higher alpha, the more distant from the x-axis
 args.act = 'elu'
-#args.epochs= 150 # init value ow
 args.epochs= 150
 args.bs= 128  # Batch size
-
-# the batch size limits the number of training sample
-# at each epoch will be n_samp/batch_size (rounded)
-# e.g. 1980/128 = 15.46 -> 16
-
 args.dropout = 0.2
-args.save_model = True
-
-out_model_file = "results/custom_vae/vae_cncvae.h5"
+args.save_model = False
 
 args.input_size = 1000
 
@@ -195,30 +133,15 @@ cncvae.build_model()
 
 # training data
 import pandas as pd
-#df=pd.read_csv(r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\data\MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
-df=pd.read_csv(r'data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
+df=pd.read_csv(r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\data\MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
 mrna_data = df.iloc[:,34:1034].copy().values
 mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ (mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
 
 cncvae.train(mrna_data_scaled, mrna_data_scaled)
 emb_train = cncvae.predict(mrna_data_scaled) # this it the latent space representation !
 
-filename = 'dissect_results/cncvae_vae.sav'
-cncvae.vae.save(filename)
+np.savetxt(r"C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code\results\custom_arch\mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
 
-
-filename = 'dissect_results/cncvae_decoder.sav'
-cncvae.decoder.save(filename)
-
-filename = 'dissect_results/cncvae_encoder.sav'
-cncvae.encoder.save(filename)
-
-filename = 'dissect_results/emb_train.sav'
-pickle.dump(emb_train, open(filename, 'wb'))
-
-
-#np.savetxt(r"C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code\results\custom_arch\mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
-np.savetxt(r"results/custom_vae/mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
 
 ###########################################################################################
     
@@ -230,22 +153,15 @@ def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=
     
     fig, axs = plt.subplots(1,3,figsize = (15,6))
     palette = 'tab10'
-    ### ! depending on the version of matplotlib -> should pass a list to hue !!!!
     g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                        #hue = data_with_labels['ER_Expr'], 
-                        hue = list(data_with_labels['ER_Expr']), 
-                        ax=axs[0],linewidth=0, s=15, alpha=0.7, palette = palette)
+                        hue = data_with_labels['ER_Expr'], ax=axs[0],linewidth=0, s=15, alpha=0.7, palette = palette)
     g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=1)
 
     g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                        # hue = data_with_labels['Pam50Subtype'], 
-                        hue = list(data_with_labels['Pam50Subtype']), 
-                        ax=axs[1],linewidth=0, s=15, alpha=0.7, palette = palette)
+                        hue = data_with_labels['Pam50Subtype'], ax=axs[1],linewidth=0, s=15, alpha=0.7, palette = palette)
     g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
     g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                        # hue = data_with_labels['iC10'], 
-                        hue = list(data_with_labels['iC10']), 
-                        ax=axs[2],linewidth=0, s=15, alpha=0.7, palette = palette)
+                        hue = data_with_labels['iC10'], ax=axs[2],linewidth=0, s=15, alpha=0.7, palette = palette)
     g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=5)
     #plt.
     # ax[0].plot(latent_repr_pca[:,0], latent_repr_pca[:,1], '.')
@@ -261,12 +177,9 @@ def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=
         fig.suptitle('{}\n{}'.format(file_name,type_), x=0.5, y=0.99)
         
     plt.tight_layout()
+    #plot_file_name = str.replace(file_name, '\\','_').split('.')[0]
+    #plt.savefig(r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\plots\{}_{}.png'.format(plot_file_name, type_), dpi=300)
     
-    if file_name != '':
-        plot_file_name = str.replace(file_name, '\\','_').split('.')[0]
-        out_file_name = r'downstream_results/{}_{}.png'.format(plot_file_name, type_) # r -> treated as raw string
-        plt.savefig(out_file_name, dpi=300) 
-        print('> saved ' + out_file_name)
     return
     
 
@@ -278,9 +191,7 @@ from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 pca.fit(latent_repr)
 latent_repr_pca = pca.transform(latent_repr)
-#plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca)
-outfile = "latent_repr_pca"
-plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca, file_name=outfile)
+plot_3plots(latent_repr_pca, df, type_='PCA', pca=pca)
 
 
 # PLOT UMAP
@@ -289,15 +200,11 @@ import umap
 mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(data_to_umap)
 latent_repr_umap = mapper.transform(data_to_umap)
 plot_3plots(latent_repr_umap, df, type_='UMAP')
-outfile = "latent_repr_umap"
-plot_3plots(data_to_plot=latent_repr_umap, data_with_labels=df, type_='UMAP', file_name=outfile)
 
 # PLOT TSNE
 from sklearn.manifold import TSNE
 latent_repr_tsne = TSNE(n_components=2, perplexity=30 ).fit_transform(latent_repr)
 plot_3plots(latent_repr_tsne, df, type_='tSNE')
-outfile = "latent_repr_tsne"
-plot_3plots(data_to_plot=latent_repr_tsne, data_with_labels=df, type_='tSNE', file_name=outfile)
     
 
 # PLOT UMAP for RAW MRNA
@@ -358,6 +265,3 @@ for latent_dim_i in range(latent_dims):
     
     
     p_values.sort_values(ascending=True)[:30].plot.bar(ax=ax)
-    
-    
-print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))

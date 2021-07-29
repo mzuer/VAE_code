@@ -4,6 +4,9 @@ from keras import layers
 from keras.datasets import mnist
 import numpy as np
 
+import pickle
+import matplotlib.pyplot as plt
+
 from keras import backend as K
 
 def sampling(args):
@@ -76,13 +79,23 @@ vae.fit(x_train, x_train,
 # Epoch 2/5
 # 1866/1875 [============================>.] - ETA: 0s - loss: 165.4826
 
+encoder_predict = encoder.predict(x_test, batch_size=batch_size)
+filename = 'mnist_stepByStep_figures/encoder_predict.sav'
+pickle.dump(encoder_predict, open(filename, 'wb'))
 
-x_test_encoded = encoder.predict(x_test, batch_size=batch_size)
+# encoder = keras.Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
+#x_test_encoded = encoder.predict(x_test, batch_size=batch_size) # I think this is wrong - not working
+x_test_encoded2 = encoder.predict(x_test, batch_size=batch_size)[0] # 10000 x 2
 plt.figure(figsize=(6, 6))
-plt.scatter(x_test_encoded[:, 0], x_test_encoded[:, 1], c=y_test)
+plt.scatter(x_test_encoded2[:, 0], x_test_encoded2[:, 1], c=y_test)
 plt.colorbar()
 plt.show()
-
+# very similar if you take z instead of z_mean
+x_test_encoded2 = encoder.predict(x_test, batch_size=batch_size)[2] # 10000 x 2
+plt.figure(figsize=(6, 6))
+plt.scatter(x_test_encoded2[:, 0], x_test_encoded2[:, 1], c=y_test)
+plt.colorbar()
+plt.show()
 
 # Display a 2D manifold of the digits
 n = 15  # figure with 15x15 digits
@@ -92,10 +105,21 @@ figure = np.zeros((digit_size * n, digit_size * n))
 grid_x = np.linspace(-15, 15, n)
 grid_y = np.linspace(-15, 15, n)
 
+i=0
+yi=-15
+j=0
+xi=-15
+
 for i, yi in enumerate(grid_x):
     for j, xi in enumerate(grid_y):
         z_sample = np.array([[xi, yi]])
         x_decoded = decoder.predict(z_sample)
+        if i == 0:
+            filename = 'mnist_stepByStep_figures/i0_decoder_predict.sav'
+            pickle.dump(x_decoded, open(filename, 'wb'))
+        # pixel values were flatten for the training
+        # x_decoded is (1,784)
+        # digit is (28,28), digit_size being 28
         digit = x_decoded[0].reshape(digit_size, digit_size)
         figure[i * digit_size: (i + 1) * digit_size,
                j * digit_size: (j + 1) * digit_size] = digit
@@ -106,10 +130,19 @@ plt.show()
 
 
 out_file_name = "mnist"
-out_file_name = r'mnist_stepByStep_figures/{}_{}.png'.format(plot_file_name, type_) # r -> treated as raw string
+out_file_name = r'mnist_stepByStep_figures/{}.png'.format(out_file_name) # r -> treated as raw string
 plt.savefig(out_file_name, dpi=300) 
 print('> saved ' + out_file_name)
         
+### the encoder can also be defined afterwards:
+# encoder is the inference network
+encoder_v2 = keras.Model(inputs, z_mean)
 
+# a 2d plot of 10 digit classes in latent space
+x_test_encoded=encoder_v2.predict(x_test, batch_size=batch_size)
+plt.figure(figsize=(6,6))
+plt.scatter(x_test_encoded[:,0], x_test_encoded[:,1], c=y_test)
+plt.colorbar()
+plt.show()
 
         
