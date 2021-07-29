@@ -130,23 +130,34 @@ inputs = Input(shape=(input_size,), name='concat_input')
 #inputs = [concat_inputs]
 
 # ------------ Encoding Layer -----------------
-x = Dense(denselayer_size, activation=activ_fct)(inputs)
-x = BN()(x)      
+x = Dense(denselayer_size, activation=activ_fct, name="encoding")(inputs)
+x = BN()(x)      # batch normalization
 
 
 # ------------ Embedding Layer --------------
 z_mean = Dense(latent_dims, name='z_mean')(x)
 z_log_sigma = Dense(latent_dims, name='z_log_sigma', kernel_initializer='zeros')(x)
+# The Lambda layer exists so that arbitrary expressions can be used as a Layer 
+# when constructing Sequential and Functional API models.
 z = Lambda(sampling, output_shape=(latent_dims,), name='z')([z_mean, z_log_sigma])
 
+# Model(inputs, outputs, name)
 encoder = Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
+encoder2 = Model(inputs, [z,z_mean, z_log_sigma], name='encoder')
+
+# where you start from Input, you chain layer calls to specify the model's forward pass, 
+# and finally you create your model from inputs and outputs:
+# inputs = tf.keras.Input(shape=(3,))
+# x = tf.keras.layers.Dense(4, activation=tf.nn.relu)(inputs)
+# outputs = tf.keras.layers.Dense(5, activation=tf.nn.softmax)(x)
+# model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
 
 # Build the decoder network
 # ------------ Dense out -----------------
 latent_inputs = Input(shape=(latent_dims,), name='z_sampling')
 x = latent_inputs
-x = Dense(denselayer_size, activation=activ_fct)(x)
+x = Dense(denselayer_size, activation=activ_fct, name="decoding")(x)
 x = BN()(x)
 
 x=Dropout(dropout_ratio)(x)
@@ -156,7 +167,7 @@ x=Dropout(dropout_ratio)(x)
 #if self.args.integration == 'Clin+CNA':
 #    concat_out = Dense(self.args.input_size,activation='sigmoid')(x)
 #else:
-concat_out = Dense(input_size)(x)
+concat_out = Dense(input_size, name="out")(x)
 
 decoder = Model(latent_inputs, concat_out, name='decoder')
 decoder.summary()
@@ -194,8 +205,10 @@ adam = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0
 vae.compile(optimizer=adam)
 vae.summary()
 
-
-
+with open('stepByStep_figures/encoder_modelsummary.txt', 'w') as f:
+    encoder.summary(print_fn=lambda x: f.write(x + '\n'))
+with open('stepByStep_figures/decoder_modelsummary.txt', 'w') as f:
+    decoder.summary(print_fn=lambda x: f.write(x + '\n'))
 with open('stepByStep_figures/modelsummary.txt', 'w') as f:
     vae.summary(print_fn=lambda x: f.write(x + '\n'))
 
@@ -209,7 +222,75 @@ ds_test = s_test#np.concatenate((s1_test,s2_test), axis=-1)
 vae.fit(ds_train, epochs=n_epochs, batch_size=batch_size, shuffle=True, validation_data=(ds_test, None))
         
 # from cncvae.predict():
-emb_train = encoder.predict(mrna_data_scaled, batch_size=batch_size)[0]
+pred_results = encoder.predict(mrna_data_scaled, batch_size=batch_size)
+emb_train = pred_results[0]
+
+pred_results2 = encoder2.predict(mrna_data_scaled, batch_size=batch_size)
+emb_train2 = pred_results2[2]
+
+### the subsection from encoder predict comes from here: 
+#encoder = Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
+#encoder2 = Model(inputs, [z,z_mean, z_log_sigma], name='encoder')
+assert np.array_equal(pred_results[0], pred_results2[1])
+assert np.array_equal(pred_results[1], pred_results2[2])
+# assert np.array_equal(pred_results[2], pred_results2[0]) not true because random sample step
 
 
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+
+
+# see chapter 2 of Learn Keras for Deep Neural Networks 
+# http://devpyjp.com/wp-content/uploads/2020/09/2_5300941824628622714.pdf
+# Input data for a DL algorithm can be of a variety of types. Essentially, 
+# the model understands data as “tensors”. Tensors are nothing but a 
+# generic form for vectors, or in computer engineering terms, a simple 
+# n-dimensional matrix. Data of any form is finally represented as a 
+# homogeneous numeric matrix. So, if the data is tabular, it will be a two- 
+# dimensional tensor where each column represents one training sample 
+# and the entire table/matrix will be m samples. 
+# in DL experiments, 
+# it is common notation to use one training sample in a column. 
+# 
+# 
+# https://keras.io/api/layers/core_layers/dense/
+# Keras Dense Layer
+# Just your regular densely-connected NN layer.
+# 
+# Dense implements the operation: output = activation(dot(input, kernel) + bias)
+#  where activation is the element-wise activation function passed as the activation 
+#  argument, kernel is a weights matrix created by the layer, and bias is a bias 
+#  vector created by the layer (only applicable if use_bias is True). 
+#  These are all attributes of Dense.
+# 
+# Note: If the input to the layer has a rank greater than 2, then Dense computes 
+# the dot product between the inputs and the kernel along the last axis of the 
+# inputs and axis 0 of the kernel (using tf.tensordot). For example, if input has
+#  dimensions (batch_size, d0, d1), then we create a kernel with shape (d1, units),
+#  and the kernel operates along axis 2 of the input, on every sub-tensor of shape 
+#  (1, 1, d1) (there are batch_size * d0 such sub-tensors). The output in this case
+#  will have shape (batch_size, d0, units).
+# 
+# Besides, layer attributes cannot be modified after the layer has been called 
+# once (except the trainable attribute). When a popular kwarg input_shape is passed, 
+# then keras will create an input layer to insert before the current layer.
+#  This can be treated equivalent to explicitly defining an InputLayer.
+#  
+#  why tensorflow backend
+#  
+#    1- At the beginning of Keras, the overlap with Tensorflow was small. Tensorflow
+ # was a bit difficult to use, and Keras simplified it a lot.
+#    2- Later, Tensorflow incorporated many functionalities similar to Keras'.
+ # Keras became less necessary.
+#    3- Then, apart from the multi-backend version, Keras was bundled with Tensorflow. 
+# Their separation line blurred over the years.
+#    4- The multi-backend Keras version was discontinued. Now the only Keras is the 
+# one bundled with Tensorflow.
+# 
+# Update: the relationship between Keras and Tensorflow is best understood with an example:
+
+# The dependency between Keras and Tensorflow is internal to Keras, it is not exposed 
+# to the programmer working with Keras. For example, in the source code of Keras,
+#  there is an implementation of a convolutional layer; this implementation calls package 
+#  keras.backend to actually run the convolution computation; depending on the Keras 
+#  configuration file, this backend is set to use the Tensorflow backend implementation 
+#  in keras.backend.tensorflow_backend.py; this Keras file just invokes Tensorflow to compute the convolution
