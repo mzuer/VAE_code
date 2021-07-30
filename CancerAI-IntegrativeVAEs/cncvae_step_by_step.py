@@ -222,6 +222,7 @@ ds_test = s_test#np.concatenate((s1_test,s2_test), axis=-1)
 vae.fit(ds_train, epochs=n_epochs, batch_size=batch_size, shuffle=True, validation_data=(ds_test, None))
         
 # from cncvae.predict():
+#encoder = Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
 pred_results = encoder.predict(mrna_data_scaled, batch_size=batch_size)
 emb_train = pred_results[0]
 
