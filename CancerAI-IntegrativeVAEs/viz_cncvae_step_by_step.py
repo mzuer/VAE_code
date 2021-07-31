@@ -1,46 +1,47 @@
 
-import os
-os.chdir('/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/')
+
+# python viz_cncvae_step_by_step.py
+
+import datetime
+start_time = str(datetime.datetime.now().time())
+print('> START: cncvae_step_by_step.py \t' + start_time)
+
 
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import sys, os
 import seaborn as sns
-
-
 import pickle
-file = open('stepByStep_figures/emb_train.sav', 'rb')
+import numpy as np
+
+wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
+os.chdir(wd)
+
+modelRunFolder = os.path.join('CNCVAE_STEP_BY_STEP')
+
+outfolder = 'VIZ_CNCVAE_STEP_BY_STEP'
+os.makedirs(outfolder, exist_ok=True)
+
+latent_dims = 64
+
+n_epochs= 150
+batch_size = 128  
+outsuffix = "_" + str(n_epochs) + "epochs_" + str(batch_size) + "bs"
+
+
+### reload data used in first step
+file = open(os.path.join(modelRunFolder,'emb_train'+outsuffix+'.sav'), 'rb')
 emb_train  = pickle.load(file)
 
+df=pd.read_csv(os.path.join('data','MBdata_33CLINwMiss_1KfGE_1KfCNA.csv'))
 
-latent_repr = emb_train
+n_samp = df.shape[0]
+n_genes = sum(['GE_' in x for x in df.columns])
 
-# PLOT PCA
-from sklearn.decomposition import PCA
-pca = PCA(n_components=2)
-pca.fit(latent_repr)
-latent_repr_pca = pca.transform(latent_repr)
-#plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca)
+mrna_data = df.iloc[:,34:1034].copy().values 
+# the values after are CNA, the values before are clinical data
 
-
-data_to_plot=latent_repr_pca
-data_with_labels=df
-
-fig, axs = plt.subplots(1,3,figsize = (15,6))
-palette = 'tab10'
-g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                hue = list(data_with_labels['ER_Expr']), ax=axs[0],linewidth=0, s=15, alpha=0.7, palette = palette)
-g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=1)
-g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                    hue = list(data_with_labels['Pam50Subtype']), ax=axs[1],linewidth=0, s=15, alpha=0.7, palette = palette)
-g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3)
-g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
-                    hue = list(data_with_labels['iC10']), ax=axs[2],linewidth=0, s=15, alpha=0.7, palette = palette)
-g.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=5)
-#plt.
-outfile = "latent_repr_pca"
-plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca, file_name=outfile)
 
 
 # plt.subplots() is a function that returns a tuple containing a figure and axes object(s). 
@@ -62,10 +63,6 @@ plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=
 ###########################################################################################
 ###########################################################################################
     
-import matplotlib.pyplot as plt
-import pandas as pd
-import sys, os
-import seaborn as sns
 def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=None):
     
     fig, axs = plt.subplots(1,3,figsize = (15,6))
@@ -97,9 +94,9 @@ def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=
     
     if file_name != '':
         plot_file_name = str.replace(file_name, '\\','_').split('.')[0]
-        out_file_name = r'downstream_results/{}_{}.png'.format(plot_file_name, type_) # r -> treated as raw string
+        out_file_name = os.path.join('{}_{}.png'.format(plot_file_name, type_)) # r -> treated as raw string
         plt.savefig(out_file_name, dpi=300) 
-        print('> saved ' + out_file_name)
+        print('... written: ' + out_file_name)
     return
     
 
@@ -112,7 +109,7 @@ pca = PCA(n_components=2)
 pca.fit(latent_repr)
 latent_repr_pca = pca.transform(latent_repr)
 #plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca)
-outfile = "latent_repr_pca"
+outfile = os.path.join(outfolder, "latent_repr_pca")
 plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca, file_name=outfile)
 
 
@@ -122,21 +119,22 @@ import umap
 mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(data_to_umap)
 latent_repr_umap = mapper.transform(data_to_umap)
 plot_3plots(latent_repr_umap, df, type_='UMAP')
-outfile = "latent_repr_umap"
+outfile = os.path.join(outfolder, "latent_repr_umap")
 plot_3plots(data_to_plot=latent_repr_umap, data_with_labels=df, type_='UMAP', file_name=outfile)
 
 # PLOT TSNE
 from sklearn.manifold import TSNE
 latent_repr_tsne = TSNE(n_components=2, perplexity=30 ).fit_transform(latent_repr)
 plot_3plots(latent_repr_tsne, df, type_='tSNE')
-outfile = "latent_repr_tsne"
+outfile = os.path.join(outfolder, "latent_repr_tSNE")
 plot_3plots(data_to_plot=latent_repr_tsne, data_with_labels=df, type_='tSNE', file_name=outfile)
     
 
 # PLOT UMAP for RAW MRNA
 mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(mrna_data)
 latent_repr_umap = mapper.transform(mrna_data)
-plot_3plots(latent_repr_umap, df, type_='UMAP')
+outfile = os.path.join(outfolder, "latent_repr_umap_raw")
+plot_3plots(latent_repr_umap, df, type_='UMAP', file_name=outfile)
 
 #####################################################################################################################
 
@@ -194,7 +192,6 @@ p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].col
 # where Xi is the data instance while xmax and xmin are the minimum and 
 # maximum absolute value of feature X respectively, and Xn is the feature after normalization. 
 
-import seaborn as sns
 
 labels = df['Pam50Subtype'].values
 
@@ -211,8 +208,12 @@ col_colors = pd.DataFrame(labels)[0].map(lut)
 
 # cluster samples by correlation of gene
 sns.clustermap(correlations_all_df, col_colors=col_colors)
+out_file_name = os.path.join(outfolder, 'correlations_clustermap.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
 
-sns.clustermap(correlations_all_df)
+
+
 
 ##### a way to get the hierarchy:
 from scipy.spatial import distance
@@ -230,22 +231,35 @@ col_linkage = hierarchy.linkage(
 sns.clustermap(correlations_all_df, row_linkage=row_linkage, 
                col_linkage=col_linkage, col_colors=col_colors)
                
-
+# cluster samples by correlation pvals of gene
 sns.clustermap(p_values_all_df)
+out_file_name = os.path.join(outfolder, 'pvals_clustermap.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
 
 # for each of the LD, barplot of the 30 most correlated genes
 for latent_dim_i in range(latent_dims):
     fig, ax = plt.subplots(figsize=(15,6))
     corrs = correlations_all_df.iloc[latent_dim_i,:]
     corrs.sort_values(ascending=False)[:30].plot.bar(ax=ax)
+out_file_name = os.path.join(outfolder, 'correlations_barplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+
+    
 # for each of the LD, barplot of the 30 highest pvalues genes
 for latent_dim_i in range(latent_dims):
     fig, ax = plt.subplots(figsize=(15,6))
     p_values = p_values_all_df.iloc[latent_dim_i,:]
     p_values.sort_values(ascending=True)[:30].plot.bar(ax=ax)
-    
-    
-    
+out_file_name = os.path.join(outfolder, 'pvalues_barplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+sys.exit(0)
+
 # do example boxplot lat dim 46 et 8 
 # 1980,64
 ld_df = pd.DataFrame(emb_train)
@@ -265,4 +279,9 @@ ld_df[ld_df.ER_Status != "?"]
 sub_dt = ld_df[ld_df.ER_Status != "?"]
 sns.boxplot(x='ER_Status', y="64", data=sub_dt)
     
-print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+
+
+### to compute CLES
+from pingouin import compute_effsize
+
+compute_effsize(x,y,paired=TRUE,eftype="CLES")

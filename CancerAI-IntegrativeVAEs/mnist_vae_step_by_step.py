@@ -1,13 +1,17 @@
 import keras
 from keras import layers
-
 from keras.datasets import mnist
-import numpy as np
+from keras import backend as K
 
+import os, sys
+import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 
-from keras import backend as K
+import datetime
+start_time = str(datetime.datetime.now().time())
+print('> START: mnist_vae_step_by_step.py \t' + start_time)
+
 
 def sampling(args):
     z_mean, z_log_sigma = args
@@ -22,6 +26,12 @@ latent_dim = 2
 
 n_epochs = 5
 batch_size = 32
+
+
+outfolder = "MNIST_VAE_STEP_BY_STEP"
+os.makedirs(outfolder, exist_ok=True)
+
+outsuffix = "_" + str(n_epochs) + "epochs_" + str(batch_size) + "bs"
 
 inputs = keras.Input(shape=(original_dim,), name="input")
 h = layers.Dense(intermediate_dim, activation='relu', name="encoding")(inputs)
@@ -44,13 +54,20 @@ decoder = keras.Model(latent_inputs, outputs, name='decoder')
 outputs = decoder(encoder(inputs)[2])
 vae = keras.Model(inputs, outputs, name='vae_mlp')
 
-with open('mnist_stepByStep_figures/encoder_modelsummary.txt', 'w') as f:
+outfile = os.path.join(outfolder, "encoder_modelsummary.txt")
+with open('mnist_stepByStep_figures/', 'w') as f:
     encoder.summary(print_fn=lambda x: f.write(x + '\n'))
-with open('mnist_stepByStep_figures/decoder_modelsummary.txt', 'w') as f:
-    decoder.summary(print_fn=lambda x: f.write(x + '\n'))
-with open('mnist_stepByStep_figures/modelsummary.txt', 'w') as f:
-    vae.summary(print_fn=lambda x: f.write(x + '\n'))
+print("... written " + outfile)
 
+outfile = os.path.join(outfolder, "decoder_modelsummary.txt")
+with open(outfile, 'w') as f:
+    decoder.summary(print_fn=lambda x: f.write(x + '\n'))
+print("... written " + outfile)
+
+outfile = os.path.join(outfolder, "modelsummary.txt")
+with open(outfile, 'w') as f:
+    vae.summary(print_fn=lambda x: f.write(x + '\n'))
+print("... written " + outfile)
 
 reconstruction_loss = keras.losses.binary_crossentropy(inputs, outputs)
 reconstruction_loss *= original_dim
@@ -80,8 +97,10 @@ vae.fit(x_train, x_train,
 # 1866/1875 [============================>.] - ETA: 0s - loss: 165.4826
 
 encoder_predict = encoder.predict(x_test, batch_size=batch_size)
-filename = 'mnist_stepByStep_figures/encoder_predict.sav'
+
+filename = os.path.join(outfolder, 'encoder_predict.sav')
 pickle.dump(encoder_predict, open(filename, 'wb'))
+print("... written " + filename)
 
 # encoder = keras.Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
 #x_test_encoded = encoder.predict(x_test, batch_size=batch_size) # I think this is wrong - not working
@@ -90,12 +109,21 @@ plt.figure(figsize=(6, 6))
 plt.scatter(x_test_encoded2[:, 0], x_test_encoded2[:, 1], c=y_test)
 plt.colorbar()
 plt.show()
+out_file_name = os.path.join(outfolder, "scatter_zmean.png")
+plt.savefig(out_file_name, dpi=300) 
+print('> saved ' + out_file_name)
+
+
 # very similar if you take z instead of z_mean
 x_test_encoded2 = encoder.predict(x_test, batch_size=batch_size)[2] # 10000 x 2
 plt.figure(figsize=(6, 6))
 plt.scatter(x_test_encoded2[:, 0], x_test_encoded2[:, 1], c=y_test)
 plt.colorbar()
 plt.show()
+out_file_name = os.path.join(outfolder, "scatter_z.png")
+plt.savefig(out_file_name, dpi=300) 
+print('> saved ' + out_file_name)
+
 
 # Display a 2D manifold of the digits
 n = 15  # figure with 15x15 digits
@@ -114,9 +142,9 @@ for i, yi in enumerate(grid_x):
     for j, xi in enumerate(grid_y):
         z_sample = np.array([[xi, yi]])
         x_decoded = decoder.predict(z_sample)
-        if i == 0:
-            filename = 'mnist_stepByStep_figures/i0_decoder_predict.sav'
-            pickle.dump(x_decoded, open(filename, 'wb'))
+        #if i == 0:
+         #   filename = 'mnist_stepByStep_figures/i0_decoder_predict.sav'
+          #  pickle.dump(x_decoded, open(filename, 'wb'))
         # pixel values were flatten for the training
         # x_decoded is (1,784)
         # digit is (28,28), digit_size being 28
@@ -128,9 +156,7 @@ plt.figure(figsize=(10, 10))
 plt.imshow(figure)
 plt.show()
 
-
-out_file_name = "mnist"
-out_file_name = r'mnist_stepByStep_figures/{}.png'.format(out_file_name) # r -> treated as raw string
+out_file_name = os.path.join(outfolder, "2d_manifold_latentTrasversal.png")
 plt.savefig(out_file_name, dpi=300) 
 print('> saved ' + out_file_name)
         
@@ -145,4 +171,10 @@ plt.scatter(x_test_encoded[:,0], x_test_encoded[:,1], c=y_test)
 plt.colorbar()
 plt.show()
 
-        
+out_file_name = os.path.join(outfolder, "digits_in_latent_space.png")
+plt.savefig(out_file_name, dpi=300) 
+print('> saved ' + out_file_name)
+
+#################### END
+print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+

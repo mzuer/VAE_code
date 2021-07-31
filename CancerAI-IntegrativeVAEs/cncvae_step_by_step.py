@@ -1,42 +1,43 @@
+
+# python cncvae_step_by_step.py
+
 #### load modules
 
 import datetime
 start_time = str(datetime.datetime.now().time())
-print('> START: ' + start_time)
+print('> START: cncvae_step_by_step.py \t' + start_time)
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import optimizers
 from tensorflow.keras.layers import BatchNormalization as BN, Concatenate, Dense, Input, Lambda,Dropout
 from tensorflow.keras.models import Model
+from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
+from keras.utils.vis_utils import plot_model
 
 import tensorflow as tf
-import numpy as np
 
 import os
 import sys
-#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
-module_path = r'/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/code'
+import pickle
+import numpy as np
+import pandas as pd
 
-os.chdir('/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/')
+wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
+os.chdir(wd)
+
+#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
+module_path = os.path.join(wd, 'code')
+
 
 if module_path not in sys.path:
     sys.path.append(module_path)
 
 from models.common import sse, bce, mmd, sampling, kl_regu
-from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
-import numpy as np
-
-import pickle
-
 from misc.dataset import Dataset, DatasetWhole
 from misc.helpers import normalizeRNA,save_embedding
 
 
-from keras.utils.vis_utils import plot_model
-
 #### set hard-coded params
-
-
 latent_dims = 64
 denselayer_size = 256 # The intermediate dense layers size
 loss_distance = 'mmd'
@@ -44,15 +45,19 @@ loss_beta = 1
 
 activ_fct = 'elu'
 #args.epochs= 150 # init value ow
-n_epochs= 10
+n_epochs= 150
 batch_size = 128  
 dropout_ratio = 0.2
+
+outfolder = os.path.join('CNCVAE_STEP_BY_STEP')
+os.makedirs(outfolder, exist_ok=True)
+
+outsuffix = "_" + str(n_epochs) + "epochs_" + str(batch_size) + "bs"
 
 ###### load data
 
 # training data
-import pandas as pd
-df=pd.read_csv(r'data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') 
+df=pd.read_csv(os.path.join('data','MBdata_33CLINwMiss_1KfGE_1KfCNA.csv'))
 
 n_samp = df.shape[0]
 n_genes = sum(['GE_' in x for x in df.columns])
@@ -68,8 +73,6 @@ assert mrna_data2.shape == mrna_data.shape
 
 mrna_data.min(axis=1).shape
 # (1980,)
-# reshape(-1) reshapes as line vector
-# reshape(-1,1) reshapes as column vector
 mrna_data.min(axis=1).reshape(-1,1).shape
 # (1980,1)
 
@@ -91,10 +94,12 @@ toy_df.min(axis=0) # works over the cols shape[0], dim = shape[1]
 
 # axis=1 row-wise [for each row], along the columns
 # axis=0 column-wise [for each column], along the rows
-
+# reshape(-1) reshapes as line vector
+# reshape(-1,1) reshapes as column vector
 mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ \
 (mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
-
+# len(mrna_data.min(axis=1))  Out[218]: 1980  => took min and max of samples
+ 
 # After missing-data removal, the input data sets consisted of 1000 features of
 #  normalized gene expression numerical data, scaled to [0,1], and 1000 features 
 # of copy number categorical data.
@@ -177,14 +182,17 @@ outputs = decoder(encoder(inputs)[2])
 vae = Model(inputs, outputs, name='vae_mlp')
 
 # should be done before compiling
-output_model_file = os.path.join('stepByStep_figures', 'cncvae_architecture.png')
+output_model_file = os.path.join(outfolder, 'cncvae_architecture.png')
 plot_model(vae, to_file=output_model_file)
+print("... written: " + output_model_file )
 
-output_model_file = os.path.join('stepByStep_figures', 'encoder_architecture.png')
+output_model_file = os.path.join(outfolder, 'encoder_architecture.png')
 plot_model(encoder, to_file=output_model_file)
+print("... written: " + output_model_file )
 
-output_model_file = os.path.join('stepByStep_figures', 'decoder_architecture.png')
+output_model_file = os.path.join(outfolder, 'decoder_architecture.png')
 plot_model(decoder, to_file=output_model_file)
+print("... written: " + output_model_file )
 
 # Define the loss
 if loss_distance == "mmd":
@@ -205,12 +213,18 @@ adam = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0
 vae.compile(optimizer=adam)
 vae.summary()
 
-with open('stepByStep_figures/encoder_modelsummary.txt', 'w') as f:
+outfile = os.path.join(outfolder,'encoder_modelsummary.txt')
+with open(outfile, 'w') as f:
     encoder.summary(print_fn=lambda x: f.write(x + '\n'))
-with open('stepByStep_figures/decoder_modelsummary.txt', 'w') as f:
+print("... written: " + outfile)
+outfile = os.path.join(outfolder,'decoder_modelsummary.txt')
+with open(outfile, 'w') as f:
     decoder.summary(print_fn=lambda x: f.write(x + '\n'))
-with open('stepByStep_figures/modelsummary.txt', 'w') as f:
+print("... written: " + outfile)
+outfile = os.path.join(outfolder, 'modelsummary.txt')
+with open(outfile, 'w') as f:
     vae.summary(print_fn=lambda x: f.write(x + '\n'))
+print("... written: " + outfile)
 
 s_train = mrna_data_scaled
 s_test = mrna_data_scaled
@@ -236,10 +250,11 @@ assert np.array_equal(pred_results[0], pred_results2[1])
 assert np.array_equal(pred_results[1], pred_results2[2])
 # assert np.array_equal(pred_results[2], pred_results2[0]) not true because random sample step
 
-import pickle
-filename = 'stepByStep_figures/emb_train.sav'
+filename = os.path.join(outfolder, 'emb_train'+ outsuffix +'.sav')
 pickle.dump(emb_train, open(filename, 'wb'))
+print("... written: " + filename )
 
+#################### END
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 
 

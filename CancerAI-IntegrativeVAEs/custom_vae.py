@@ -1,39 +1,44 @@
 #
 import datetime
 start_time = str(datetime.datetime.now().time())
-print('> START: ' + start_time)
+print('> START: custom_vae.py \t' + start_time)
 
+3# python custom_vae.py
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import optimizers
 from tensorflow.keras.layers import BatchNormalization as BN, Concatenate, Dense, Input, Lambda,Dropout
 from tensorflow.keras.models import Model
-
+from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
 from keras.utils.vis_utils import plot_model
 
-
 import tensorflow as tf
-import numpy as np
 
+import numpy as np
 import os
 import sys
-#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
-module_path = r'/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/code'
+import pickle
+import seaborn as sns
+import argparse
+import matplotlib.pyplot as plt
+import pandas as pd
 
-os.chdir('/home/marie/Documents/FREITAS_LAB/VAE_tutos/CancerAI-IntegrativeVAEs/')
+
+wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
+os.chdir(wd)
+
+#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
+module_path = os.path.join(wd, 'code')
 
 if module_path not in sys.path:
     sys.path.append(module_path)
 
 from models.common import sse, bce, mmd, sampling, kl_regu
-from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
-import numpy as np
-
-import pickle
-
 from misc.dataset import Dataset, DatasetWhole
 from misc.helpers import normalizeRNA,save_embedding
 
+outfolder = os.path.join('CUSTOM_VAE')
+os.makedirs(outfolder, exist_ok=True)
 
 
 class CNCVAE:
@@ -95,28 +100,33 @@ class CNCVAE:
         concat_out = Dense(self.args.input_size)(x)
         
         decoder = Model(latent_inputs, concat_out, name='decoder')
-        filename = 'dissect_results/decoder.sav'
+        filename = os.path.join(outfolder,'decoder.sav')
         #pickle.dump(decoder, open(filename, 'wb'))
         decoder.save(filename)
+        print("... written: " + filename )
+        
         decoder.summary()
         
         self.decoder=decoder
 
         outputs = decoder(self.encoder(inputs)[2])
         self.vae = Model(inputs, outputs, name='vae_mlp')
-        filename = 'dissect_results/vae.sav'
+        filename = os.path.join(outfolder, 'vae.sav')
         self.vae.save(filename)
+        print("... written: " + filename )
         
-        output_model_file = os.path.join('dissect_results', 'cncvae_architecture.png')
+        output_model_file = os.path.join(outfolder, 'cncvae_architecture.png')
         plot_model(self.vae, to_file=output_model_file)
+        print("... written: " + output_model_file )
         
-        output_model_file = os.path.join('dissect_results', 'encoder_architecture.png')
+        output_model_file = os.path.join(outfolder, 'encoder_architecture.png')
         plot_model(self.encoder, to_file=output_model_file)
-
-        output_model_file = os.path.join('dissect_results', 'decoder_architecture.png')
-        plot_model(self.decoder, to_file=output_model_file)
-
+        print("... written: " + output_model_file )
         
+        output_model_file = os.path.join(outfolder, 'decoder_architecture.png')
+        plot_model(self.decoder, to_file=output_model_file)
+        print("... written: " + output_model_file )
+
         # Define the loss
         if self.args.distance == "mmd":
             true_samples = K.random_normal(K.stack([self.args.bs, self.args.ls]))
@@ -136,9 +146,11 @@ class CNCVAE:
         self.vae.compile(optimizer=adam)
         self.vae.summary()
         
-        with open('dissect_results/modelsummary.txt', 'w') as f:
+        outfile = os.path.join(outfolder, 'modelsummary.txt')
+        with open(outfile, 'w') as f:
             self.vae.summary(print_fn=lambda x: f.write(x + '\n'))
-
+        print("... written: " + outfile )
+            
     def train(self, s_train, s_test):
         train = s_train#np.concatenate((s1_train,s2_train), axis=-1)
         test = s_test#np.concatenate((s1_test,s2_test), axis=-1)
@@ -153,7 +165,7 @@ class CNCVAE:
 
 
 
-import argparse
+
 parser = argparse.ArgumentParser()
 args = parser.parse_args()
 
@@ -183,7 +195,8 @@ args.bs= 128  # Batch size
 args.dropout = 0.2
 args.save_model = True
 
-out_model_file = "results/custom_vae/vae_cncvae.h5"
+outsuffix = "_" + str(args.epochs) + "epochs_"  + str(args.bs) + "bs"
+out_model_file = os.path.join(outfolder, "vae_cncvae" + outsuffix + ".h5")
 
 args.input_size = 1000
 
@@ -196,36 +209,35 @@ cncvae.build_model()
 # training data
 import pandas as pd
 #df=pd.read_csv(r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\data\MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
-df=pd.read_csv(r'data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
+df=pd.read_csv(os.path.join('data','MBdata_33CLINwMiss_1KfGE_1KfCNA.csv')) # dataset available in github repo
 mrna_data = df.iloc[:,34:1034].copy().values
 mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ (mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
 
 cncvae.train(mrna_data_scaled, mrna_data_scaled)
 emb_train = cncvae.predict(mrna_data_scaled) # this it the latent space representation !
 
-filename = 'dissect_results/cncvae_vae.sav'
+filename = os.path.join(outfolder,'cncvae_vae' + outsuffix + '.sav')
 cncvae.vae.save(filename)
+print("... written: " + filename )
 
-
-filename = 'dissect_results/cncvae_decoder.sav'
+filename = os.path.join(outfolder,'cncvae_decoder' + outsuffix + '.sav')
 cncvae.decoder.save(filename)
+print("... written: " + filename )
 
-filename = 'dissect_results/cncvae_encoder.sav'
+filename = os.path.join(outfolder,'cncvae_encoder' + outsuffix + '.sav')
 cncvae.encoder.save(filename)
+print("... written: " + filename )
 
-filename = 'dissect_results/emb_train.sav'
+filename = os.path.join(outfolder,'emb_train' + outsuffix + '.sav')
 pickle.dump(emb_train, open(filename, 'wb'))
-
+print("... written: " + filename )
 
 #np.savetxt(r"C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code\results\custom_arch\mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
-np.savetxt(r"results/custom_vae/mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
-
+outfile = os.path.join(outfolder, "mRNA_ls64_hs256_mmd_beta1_scaled" + outsuffix + ".csv")
+np.savetxt(outfile, emb_train, delimiter = ',')
+print("... written: " + outfile )
 ###########################################################################################
     
-import matplotlib.pyplot as plt
-import pandas as pd
-import sys, os
-import seaborn as sns
 def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=None):
     
     fig, axs = plt.subplots(1,3,figsize = (15,6))
@@ -264,9 +276,10 @@ def plot_3plots(data_to_plot, data_with_labels,file_name='', type_ = 'PCA', pca=
     
     if file_name != '':
         plot_file_name = str.replace(file_name, '\\','_').split('.')[0]
-        out_file_name = r'downstream_results/{}_{}.png'.format(plot_file_name, type_) # r -> treated as raw string
+        #out_file_name = os.path.join(outfolder,'downstream_results/{}_{}.png'.format(plot_file_name, type_)) # r -> treated as raw string
+        out_file_name = os.path.join('{}_{}.png'.format(plot_file_name, type_)) # r -> treated as raw string
         plt.savefig(out_file_name, dpi=300) 
-        print('> saved ' + out_file_name)
+        print('... written: ' + out_file_name)
     return
     
 
@@ -279,7 +292,7 @@ pca = PCA(n_components=2)
 pca.fit(latent_repr)
 latent_repr_pca = pca.transform(latent_repr)
 #plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca)
-outfile = "latent_repr_pca"
+outfile = os.path.join(outfolder, "latent_repr_pca")
 plot_3plots(data_to_plot=latent_repr_pca, data_with_labels=df, type_='PCA', pca=pca, file_name=outfile)
 
 
@@ -289,20 +302,21 @@ import umap
 mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(data_to_umap)
 latent_repr_umap = mapper.transform(data_to_umap)
 plot_3plots(latent_repr_umap, df, type_='UMAP')
-outfile = "latent_repr_umap"
+outfile = os.path.join(outfolder, "latent_repr_umap")
 plot_3plots(data_to_plot=latent_repr_umap, data_with_labels=df, type_='UMAP', file_name=outfile)
 
 # PLOT TSNE
 from sklearn.manifold import TSNE
 latent_repr_tsne = TSNE(n_components=2, perplexity=30 ).fit_transform(latent_repr)
 plot_3plots(latent_repr_tsne, df, type_='tSNE')
-outfile = "latent_repr_tsne"
+outfile = os.path.join(outfolder, "latent_repr_tsne")
 plot_3plots(data_to_plot=latent_repr_tsne, data_with_labels=df, type_='tSNE', file_name=outfile)
     
 
 # PLOT UMAP for RAW MRNA
 mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(mrna_data)
 latent_repr_umap = mapper.transform(mrna_data)
+outfile = os.path.join(outfolder, "latent_repr_umap_raw")
 plot_3plots(latent_repr_umap, df, type_='UMAP')
 
 #####################################################################################################################
@@ -314,12 +328,9 @@ for gene_i in range(mrna_data.shape[1]):
     correlations=[]
     p_values=[]
     for latent_dim_i in range(latent_dims):
-        
         corr_, p_value = spearmanr(mrna_data[:,gene_i], latent_repr[:,latent_dim_i])
-        
         correlations.append(corr_)
         p_values.append(p_value)
-        
     correlations_all.append(correlations)
     p_values_all.append(p_values)
 
@@ -328,36 +339,38 @@ correlations_all_df = pd.DataFrame(correlations_all.T, columns = df.iloc[:,34:10
 p_values_all = np.array(p_values_all)
 p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].columns)
 
-import seaborn as sns
-
 labels = df['Pam50Subtype'].values
 
 lut = dict(zip(set(labels), sns.hls_palette(len(set(labels)))))
 col_colors = pd.DataFrame(labels)[0].map(lut)
 
-
 sns.clustermap(correlations_all_df, col_colors=col_colors)
+out_file_name = os.path.join(outfolder, 'correlations_clustermap.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
 
 sns.clustermap(p_values_all_df)
+out_file_name = os.path.join(outfolder, 'pvalues_clustermap.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
 
 
 for latent_dim_i in range(latent_dims):
-    
     fig, ax = plt.subplots(figsize=(15,6))
-    
     corrs = correlations_all_df.iloc[latent_dim_i,:]
-    
-    
     corrs.sort_values(ascending=False)[:30].plot.bar(ax=ax)
 
+out_file_name = os.path.join(outfolder, 'correlations_barplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
 for latent_dim_i in range(latent_dims):
-    
     fig, ax = plt.subplots(figsize=(15,6))
-    
     p_values = p_values_all_df.iloc[latent_dim_i,:]
-    
-    
     p_values.sort_values(ascending=True)[:30].plot.bar(ax=ax)
-    
+out_file_name = os.path.join(outfolder, 'pvalues_barplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
     
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
