@@ -1,11 +1,11 @@
 
-# python cncvae_step_by_step.py
+# python cncvae_step_by_step_axis0.py
 
 #### load modules
 
 import datetime
 start_time = str(datetime.datetime.now().time())
-print('> START: cncvae_step_by_step.py \t' + start_time)
+print('> START: cncvae_step_by_step_axis0.py \t' + start_time)
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import optimizers
@@ -51,7 +51,7 @@ n_epochs= 150
 batch_size = 128  
 dropout_ratio = 0.2
 
-outfolder = os.path.join('CNCVAE_STEP_BY_STEP')
+outfolder = os.path.join('CNCVAE_STEP_BY_STEP_AXIS0')
 os.makedirs(outfolder, exist_ok=True)
 
 outsuffix = "_" + str(n_epochs) + "epochs_" + str(batch_size) + "bs"
@@ -98,8 +98,9 @@ toy_df.min(axis=0) # works over the cols shape[0], dim = shape[1]
 # axis=0 column-wise [for each column], along the rows
 # reshape(-1) reshapes as line vector
 # reshape(-1,1) reshapes as column vector
-mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ \
-(mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
+### !!!! change here axis0
+mrna_data_scaled = (mrna_data - mrna_data.min(axis=0).reshape(-1))/ \
+                (mrna_data.max(axis=0)-mrna_data.min(axis=0)).reshape(-1)
 # len(mrna_data.min(axis=1))  Out[218]: 1980  => took min and max of samples
  
 # After missing-data removal, the input data sets consisted of 1000 features of
@@ -111,9 +112,9 @@ assert mrna_data_scaled.shape[1] == n_genes
 
 # mrna_data.min(axis=1).shape
 # (1980,)
-assert mrna_data.min(axis=1).shape[0] == n_samp
-assert np.all((mrna_data_scaled.min(axis=1) == 0))
-assert np.all((mrna_data_scaled.max(axis=1) == 1))
+assert mrna_data.min(axis=0).shape[0] == n_genes
+assert np.all((mrna_data_scaled.min(axis=0) == 0))  ### change here axis 0
+assert np.all((mrna_data_scaled.max(axis=0) == 1))
 
 ### NORMALIZATION HAS BEEN DONE BY SAMPLES !!!!
 
