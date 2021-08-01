@@ -6,14 +6,16 @@ import datetime
 start_time = str(datetime.datetime.now().time())
 print('> START: cncvae_step_by_step.py \t' + start_time)
 
-
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import sys, os
 import seaborn as sns
 import pickle
 import numpy as np
+
+import math
+from pingouin import mwu
+
 
 wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
 os.chdir(wd)
@@ -192,6 +194,9 @@ p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].col
 # where Xi is the data instance while xmax and xmin are the minimum and 
 # maximum absolute value of feature X respectively, and Xn is the feature after normalization. 
 
+# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) it 
+# guarantees multi-omics features will have the same scale45. Thus, all the features will have 
+# equal importance in the multi-omics analysis
 
 labels = df['Pam50Subtype'].values
 
@@ -257,8 +262,101 @@ out_file_name = os.path.join(outfolder, 'pvalues_barplot.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 
+
+
+#### association with er status
+ld_df = pd.DataFrame(emb_train)
+ld_df['ER_Status'] = df['ER_Status']
+colnames = ld_df.columns.tolist()
+colnames[0:64] = [str(x) for x in list(range(1,65))]
+ld_df.columns = colnames
+sub_dt = ld_df[ld_df.ER_Status != "?"]
+    
+
+ndim  = 64
+ncol=8
+fig, axs = plt.subplots(8,8,figsize = (20,20))
+
+dims_mwu_pvals = [None] * ndim
+dims_mwu_cles = [None] * ndim
+
+for i in range(1,65):
+    i_row = math.floor((i-1)/ncol)
+    i_col = i%ncol - 1
+    
+    pos_vals = sub_dt[sub_dt['ER_Status'] == "pos"][str(i)]
+    neg_vals = sub_dt[sub_dt['ER_Status'] == "neg"][str(i)]
+
+    assert len(pos_vals) + len(neg_vals) == sub_dt.shape[0]
+    
+    mwu_test = mwu(x=pos_vals, y=neg_vals, tail="two-sided")
+    p_val = float(mwu_test['p-val'])
+    cles = float(mwu_test['CLES'])
+    dims_mwu_pvals[i-1] = p_val
+    dims_mwu_cles[i-1] = cles
+    
+    g = sns.boxplot(x='ER_Status', y=str(i), data=sub_dt, ax=axs[i_row,i_col])
+    # MWU test
+    g.set(title='LD (pval={:.2e} - CLES={:.2f})'.format(p_val, cles))
+
+
+out_file_name = os.path.join(outfolder, 'all_boxplots_ERexpr.png')
+fig.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+
+cles_dt = pd.DataFrame({'LD':range(1,65),'pvals': dims_mwu_pvals, 'CLES': dims_mwu_cles})
+cles_dt['CLES_05'] = cles_dt['CLES']-0.5
+
+
+# NB: do not use next !! is for iterator, in case 'continue'
+sig_labels = []
+for x in cles_dt['pvals'].values:
+    if x < 0.0001:
+        sig_labels.append('p<0.0001')
+    elif x < 0.001:
+        sig_labels.append('p<0.001')
+    elif x < 0.01:
+        sig_labels.append('p<0.01')
+    elif x >= 0.01:
+        sig_labels.append('p>=0.01')
+    else:
+        sys.exit(1)
+        
+cles_dt['sig'] = sig_labels
+
+plt.figure(figsize=(10,6))
+# make barplot
+cles_dt_sorted=cles_dt.sort_values(by='CLES_05', ascending=False)
+sns.barplot(x='LD', y="CLES_05", data=cles_dt_sorted,
+            hue = 'sig',
+               order=cles_dt_sorted.sort_values('CLES_05', ascending=False).LD)
+# set labels
+plt.xlabel("LD", size=15)
+plt.ylabel("CLES-0.5", size=15)
+plt.title("CLES and sig. LD (MWU)", size=18)
+plt.tight_layout()
+out_file_name = os.path.join(outfolder, 'all_barplots_CLES.png')
+fig.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+
+max_cles_LD = cles_dt_sorted['LD'].iloc[0]
+min_cles_LD = cles_dt_sorted['LD'].iloc[-1]
+        
+fig, axs = plt.subplots(1,2,figsize = (10,6))
+g = sns.boxplot(x='ER_Status', y=str(max_cles_LD), data=sub_dt,ax=axs[0])
+g = sns.boxplot(x='ER_Status', y=str(min_cles_LD), data=sub_dt,ax=axs[1]) 
+out_file_name = os.path.join(outfolder, 'min_max_CLES_boxplot.png')
+fig.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+#********************
+#********************
+#********************
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 sys.exit(0)
+
 
 # do example boxplot lat dim 46 et 8 
 # 1980,64
@@ -276,12 +374,10 @@ ld_df[ld_df.ER_Status.ne("?")]
 ld_df[ld_df['ER_Status'].isin(list("?")) == False] # can handle multiple values then
 ld_df[ld_df.ER_Status != "?"]
 
-sub_dt = ld_df[ld_df.ER_Status != "?"]
-sns.boxplot(x='ER_Status', y="64", data=sub_dt)
-    
 
 
-### to compute CLES
-from pingouin import compute_effsize
 
-compute_effsize(x,y,paired=TRUE,eftype="CLES")
+
+# ### alternative to compute CLES
+# from pingouin import compute_effsize
+# compute_effsize(x,y,paired=TRUE,eftype="CLES")

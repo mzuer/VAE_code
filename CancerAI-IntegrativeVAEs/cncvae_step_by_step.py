@@ -81,6 +81,7 @@ mrna_data.min(axis=1).reshape(-1,1).shape
 mrna_data.min(axis=0).shape
 # 1000
 
+# see notes in viz
 # rescale to 0-1 range
 # x-min/max-min
 
@@ -105,6 +106,10 @@ mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ \
 # After missing-data removal, the input data sets consisted of 1000 features of
 #  normalized gene expression numerical data, scaled to [0,1], and 1000 features 
 # of copy number categorical data.
+
+# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) it 
+# guarantees multi-omics features will have the same scale45. Thus, all the features will have 
+# equal importance in the multi-omics analysis
 
 assert mrna_data_scaled.shape[0] == n_samp
 assert mrna_data_scaled.shape[1] == n_genes
