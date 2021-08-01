@@ -13,6 +13,7 @@ from tensorflow.keras.layers import BatchNormalization as BN, Concatenate, Dense
 from tensorflow.keras.models import Model
 from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
 from keras.utils.vis_utils import plot_model
+from scipy.stats import spearmanr
 
 import tensorflow as tf
 
@@ -179,7 +180,12 @@ x=Dropout(dropout_ratio)(x)
 #if self.args.integration == 'Clin+CNA':
 #    concat_out = Dense(self.args.input_size,activation='sigmoid')(x)
 #else:
-concat_out = Dense(input_size, name="out")(x)
+out_layer = Dense(input_size, name="out")
+concat_out = out_layer(x)
+# concat_out = Dense(input_size, name="out")(x) => this will not work if I wont to retrieve the weights
+# ===> There's a difference between the layer (Dense(n)) and the output tensor you get 
+# when applying this layer to some input tensor (Dense(n)(input)). 
+# You need to store the layer in a variable, not just the output tensor:
 
 decoder = Model(latent_inputs, concat_out, name='decoder')
 decoder.summary()
@@ -280,12 +286,12 @@ plt.title('Training and Validation loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
-plt.show()
+#plt.show()
 
 filename = os.path.join(outfolder, 'train_valid_loss'+ outsuffix +'.png')
 plt.savefig(filename, dpi=300) 
 print('... written: ' + filename)
-
+plt.close()
 
 #################### look at the weights
 
@@ -339,13 +345,14 @@ sns.distplot(encoder_weights, hist=True, kde=True,
              hist_kws={'edgecolor':'black'},
              kde_kws={'linewidth': 4})
 # Add labels
-plt.title('Histogram of corr values')
+plt.title('Dist. encoder weights')
 plt.xlabel('Weights')
 plt.ylabel('Features (genes)')
 
 out_file_name = os.path.join(outfolder, 'encoder_weights_distplot.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
+plt.close()
 
 # find the gene that has the max activation
 enc_weights_dt = pd.DataFrame(all_weights['encoding'])
@@ -355,6 +362,60 @@ np.argmax(maxvals)
 df.columns[34:1034][np.argmax(maxvals)]
 # The transcription factor DEC1 (stra13, SHARP2) is associated with the 
 # hypoxic response and high tumour grade in human breast cancers
+
+# retrieve decoder weights 
+decoder.layers
+# Out[28]: 
+# [<tensorflow.python.keras.engine.input_layer.InputLayer at 0x7f78eee3c760>,
+#  <tensorflow.python.keras.layers.core.Dense at 0x7f78eee3c0d0>,
+#  <tensorflow.python.keras.layers.normalization_v2.BatchNormalization at 0x7f78eed961c0>,
+#  <tensorflow.python.keras.layers.core.Dropout at 0x7f78eed96a60>,
+#  <tensorflow.python.keras.layers.core.Dense at 0x7f78eeda0940>]
+# for each, the first is weights, then kernels
+dec_weights = decoder.get_weights()[6] ### ==>> why is it 64x256 ???
+
+
+sns.distplot(dec_weights, hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dec. vs. enc. weights - gene . decoder weights')
+plt.xlabel('Weights')
+plt.ylabel('Features (genes)')
+
+out_file_name = os.path.join(outfolder, 'decoder_weights_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
+dec_weights_dt = pd.DataFrame(dec_weights)
+
+assert enc_weights_dt.shape[0] == dec_weights_dt.shape[1]
+assert enc_weights_dt.shape[1] == dec_weights_dt.shape[0]
+
+all_corrs = []
+all_pvals = []
+
+for i in range(enc_weights_dt.shape[0]):
+        corr_, p_value = spearmanr(enc_weights_dt.iloc[i,:], 
+                                   dec_weights_dt.iloc[:,i])
+        all_corrs.append(corr_)
+        all_pvals.append(p_value)
+
+sns.distplot(all_corrs, hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dec. vs. enc. weights - gene . decoder weights')
+plt.xlabel('')
+plt.ylabel('Correlations')
+
+out_file_name = os.path.join(outfolder, 'decoder_encoder_weights_correlation_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
 
       
 #################### END

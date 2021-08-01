@@ -4,7 +4,7 @@
 
 import datetime
 start_time = str(datetime.datetime.now().time())
-print('> START: cncvae_step_by_step.py \t' + start_time)
+print('> START: viz_cncvae_step_by_step.py \t' + start_time)
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -163,6 +163,31 @@ correlations_all_df = pd.DataFrame(correlations_all.T, columns = df.iloc[:,34:10
 # columns -> retrieve column names from the original data frame
 p_values_all = np.array(p_values_all)
 p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].columns)
+
+# scatterplot highest/lowest gene correlation with LD
+# retrieve the highest correlation value
+
+correlations_all_df_abs = abs(correlations_all_df)
+
+less_cor = np.unravel_index(correlations_all_df_abs.values.argmin(), correlations_all_df.shape)
+pos_max = np.unravel_index(correlations_all_df.values.argmax(), correlations_all_df.shape)
+neg_min = np.unravel_index(correlations_all_df.values.argmin(), correlations_all_df.shape)
+
+
+for i in [less_cor, pos_max, neg_min]:
+    i_ld_idx = i[0]  ## 0-based dim
+    i_gene_idx = i[1]  ## 0-based dim
+    i_gene = correlations_all_df.columns[i_gene_idx]
+    gene_expr = df[i_gene].values # do not use index !!! also sample data
+    latent_expr = pd.DataFrame(latent_repr).iloc[:,i_ld_idx]
+    fig, ax = plt.subplots(figsize=(6,6))
+    sns.scatterplot(y=gene_expr, x=latent_expr)
+    plt.ylabel(i_gene + " expression")
+    plt.xlabel("LD " + str(i_ld_idx+1))
+    out_file_name = os.path.join(outfolder, i_gene + "_LD " + str(i_ld_idx+1) +"_top_correlations_scatterplot.png")
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+
 
 # for each gene: correlation with each of the latent dim -> 1000 x 64 (iterate over genes, iterate over LD)
 # _all.shape : 1000, 64
@@ -350,6 +375,21 @@ g = sns.boxplot(x='ER_Status', y=str(min_cles_LD), data=sub_dt,ax=axs[1])
 out_file_name = os.path.join(outfolder, 'min_max_CLES_boxplot.png')
 fig.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
+
+
+## pairplot for the top 4 (top min and top max)
+top2_max = list(cles_dt_sorted.LD[0:2].values.astype(np.str))
+top2_min = list(cles_dt_sorted.LD[-2:].values.astype(np.str))
+
+top2_dt = sub_dt.copy()
+top2_dt = top2_dt[top2_min+top2_max+['ER_Status']]
+
+sns.pairplot(top2_dt, hue = 'ER_Status')
+out_file_name = os.path.join(outfolder, 'top2_CLES_LD_pairplot.png')
+fig.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+
 
 #********************
 #********************
