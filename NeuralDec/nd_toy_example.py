@@ -21,12 +21,24 @@
 # Necessary imports
 
 # + id="19UUaL9pUkE9" colab_type="code" colab={}
+
+import sys,os
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
+
+wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','NeuralDec')
+os.chdir(wd)
+
+#module_path = r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code'
+module_path = os.path.join(wd, 'ND')
+
+
+if module_path not in sys.path:
+    sys.path.append(module_path)
 
 from ND.encoder import cEncoder
 from ND.decoder import Decoder
@@ -42,7 +54,7 @@ from torch.distributions.normal import Normal
 # Choose device (i.e. CPU or GPU)
 
 # + id="RBWe-V94Zvwp" colab_type="code" colab={}
-device = "cuda"
+device = "cpu"
 
 # + [markdown] id="7YcLw4FuZ-vF" colab_type="text"
 # Generate a synthetic data set (700 data points, 5 features)

@@ -5,12 +5,9 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 
 import tensorflow as tf
-
-
-
 from keras.layers import Input, Dense, Lambda, Layer, Activation
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model
@@ -19,38 +16,38 @@ from keras import metrics, optimizers
 from keras.callbacks import Callback
 import keras
 
-import pydot
-import graphviz
+#import pydot
+#import graphviz
 #from keras.utils import plot_model
 from keras.utils.vis_utils import plot_model
 
 from keras_tqdm import TQDMNotebookCallback
-from IPython.display import SVG
+#from IPython.display import SVG
 from keras.utils.vis_utils import model_to_dot
 # -
 
+import datetime
+start_time =  str(datetime.datetime.now().time())
+
 outfolder = "TYBALT_VAE"
 os.makedirs(outfolder, exist_ok=True)
-tf.random.set_seed(42)
+#tf.random.set_seed(42)
 
 
-import tensorflow.compat.v1.keras.backend as K
-tf.compat.v1.disable_eager_execution()
-tf.compat.v1.global_variables_initializer()
 
-
-inputfolder=os.path.join("tybalt-master", "data")
+inputfolder=os.path.join("../Tybalt/tybalt-master", "data")
 
 print(keras.__version__)
 tf.__version__
 
-plt.style.use('seaborn-notebook')
+#plt.style.use('seaborn-notebook')
 
-sns.set(style="white", color_codes=True)
-sns.set_context("paper", rc={"font.size":14,"axes.titlesize":15,"axes.labelsize":20,
-                             'xtick.labelsize':14, 'ytick.labelsize':14})
+#sns.set(style="white", color_codes=True)
+#sns.set_context("paper", rc={"font.size":14,"axes.titlesize":15,"axes.labelsize":20,
+#                             'xtick.labelsize':14, 'ytick.labelsize':14})
 
-
+#import tensorflow.compat.v1.keras.backend as K
+#tf.compat.v1.disable_eager_execution()
 
 # Load Functions and Classes
 #
@@ -135,7 +132,7 @@ original_dim = rnaseq_df.shape[1]
 latent_dim = 100
 
 batch_size = 50
-epochs = 50
+epochs = 3
 learning_rate = 0.0005
 
 epsilon_std = 1.0
@@ -178,18 +175,12 @@ rnaseq_reconstruct = decoder_to_reconstruct(z)
 #
 # The VAE is compiled with an Adam optimizer and built-in custom loss function. The `loss_weights` parameter ensures beta is updated at each epoch end callback
 
-#adam =  tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate) 
-#adam = optimizers.Adam(lr=learning_rate)  ## v1 - true one
-adam= tf.keras.optimizers.Adam(0.001)
+adam = optimizers.Adam(lr=learning_rate)
 vae_layer = CustomVariationalLayer()([rnaseq_input, rnaseq_reconstruct])
 vae = Model(rnaseq_input, vae_layer)
-vae.compile(optimizer=adam, loss=None, loss_weights=[beta]) ## v1 - true one
-
-tf.compat.v1.global_variables_initializer()
-tf.compat.v1.local_variables_initializer()
+vae.compile(optimizer=adam, loss=None, loss_weights=[beta])
 
 vae.summary()
-
 
 
 # Visualize the connections of the custom VAE model
@@ -203,6 +194,7 @@ plot_model(vae, to_file=output_model_file)
 #
 # The training data is shuffled after every epoch and 10% of the data is heldout for calculating validation loss.
 
+#tf.compat.v1.global_variables_initializer()
 
 hist = vae.fit(np.array(rnaseq_train_df),
                shuffle=True,
@@ -210,10 +202,10 @@ hist = vae.fit(np.array(rnaseq_train_df),
                verbose=0,
                batch_size=batch_size,
                validation_data=(np.array(rnaseq_test_df), None),
-               callbacks=[WarmUpCallback(beta, kappa)])#,
- #                         TQDMNotebookCallback(leave_inner=True, leave_outer=True)])
-    
-    
+                              callbacks=[WarmUpCallback(beta, kappa)])
+#               callbacks=[WarmUpCallback(beta, kappa),
+#                          TQDMNotebookCallback(leave_inner=True, leave_outer=True)])
+
 # Visualize training performance
 history_df = pd.DataFrame(hist.history)
 hist_plot_file = os.path.join(outfolder, 'onehidden_vae_training.pdf')
@@ -320,7 +312,7 @@ gene_summary.sort_values(by='gene abs(sum)', ascending=False).head()
 # -
 
 # Mean of gene reconstruction vs. absolute reconstructed difference per sample
-g = sns.jointplot('gene mean', 'gene abs(sum)', data=gene_summary, stat_func=None);
+#g = sns.jointplot('gene mean', 'gene abs(sum)', data=gene_summary, stat_func=None);
 
 
 #################### END
