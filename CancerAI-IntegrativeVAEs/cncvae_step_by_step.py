@@ -3,6 +3,8 @@
 
 #### load modules
 
+
+
 import datetime
 start_time = str(datetime.datetime.now().time())
 print('> START: cncvae_step_by_step.py \t' + start_time)
@@ -13,6 +15,8 @@ from tensorflow.keras.layers import BatchNormalization as BN, Concatenate, Dense
 from tensorflow.keras.models import Model
 from tensorflow.keras.losses import mean_squared_error,binary_crossentropy
 from keras.utils.vis_utils import plot_model
+from keras.utils.vis_utils import model_to_dot
+
 from scipy.stats import spearmanr
 
 import tensorflow as tf
@@ -24,6 +28,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+import math
+import umap
+
 
 wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
 os.chdir(wd)
@@ -246,7 +254,8 @@ ds_train = s_train#np.concatenate((s1_train,s2_train), axis=-1)
 ds_test = s_test#np.concatenate((s1_test,s2_test), axis=-1)
 
 # from cncvae.train():
-history = vae.fit(ds_train, epochs=n_epochs, batch_size=batch_size, shuffle=True, validation_data=(ds_test, None))
+history = vae.fit(ds_train, epochs=n_epochs, batch_size=batch_size, 
+                  shuffle=True, validation_data=(ds_test, None))
 filename = os.path.join(outfolder, 'vae_history'+ outsuffix +'.sav')
 pickle.dump(history.history, open(filename, 'wb'))
 print("... written: " + filename )
@@ -422,6 +431,70 @@ plt.close()
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 
 
+
+decoder.predict(encoder.predict(mrna_data_scaled, batch_size=batch_size)[2], batch_size=batch_size)
+vae.predict(mrna_data_scaled, batch_size=batch_size)
+
+# => why it is not the same ????
+
+
+#### retrieve the normal z vect
+# then iteratively shut down one LD (set all values to 0)
+# use it as input for the decoder
+# run PCA on the decoded ^
+
+data_with_labels = df
+
+ndim  = 64
+ncol=8
+fig, axs = plt.subplots(8,8,figsize = (20,20))
+palette = 'tab10'
+   
+for i in range(ndim):
+    
+    print("start LD " + str(i))
+    
+    i_row = math.floor((i)/ncol)
+    i_col = i%ncol 
+    
+    intact_lds = encoder.predict(mrna_data_scaled, batch_size=batch_size)[2]
+    assert intact_lds.shape[1] == ndim
+    
+    # set the current LD to 0, decode, and do PCA
+    new_lds_dt = intact_lds
+    new_lds_dt[:,i] = 0
+    new_outputs = decoder.predict(new_lds_dt , batch_size=batch_size)
+
+    mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(new_outputs)
+    new_umap = mapper.transform(new_outputs)
+    data_to_plot = new_umap
+
+ 
+    g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
+                        hue = list(data_with_labels['ER_Expr']), 
+                        ax=axs[i_row, i_col],linewidth=0, s=15, alpha=0.7, 
+                        palette = palette)
+    g.set(title='LD ' + str(i+1) + ' set to 0')
+
+    
+out_file_name = os.path.join(outfolder, 'all_umap_shutdownLD_ERexpr.png')
+fig.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### example how to subset randomly dataset
 # Split 10% test set randomly
 # test_set_percent = 0.1
@@ -503,3 +576,71 @@ print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time())
 #     TensorFlow is an open-source symbolic tensor manipulation framework developed by Google, Inc.
 #     Theano is an open-source symbolic tensor manipulation framework developed by LISA/MILA Lab at Université de Montréal.
 
+
+
+#### TYBALT
+ 
+ # rescaled genes ranged betw 0 and 1, not the samples
+ 
+#  2 rows × 5000 columns
+# 
+# rnaseq_df.apply(min,axis=0)
+# 
+# RPS4Y1     0.0
+# XIST       0.0
+# KRT5       0.0
+# AGR2       0.0
+# CEACAM5    0.0
+#           ... 
+# GDPD3      0.0
+# SMAGP      0.0
+# C2orf85    0.0
+# POU5F1B    0.0
+# CHST2      0.0
+# Length: 5000, dtype: float64
+# 
+# rnaseq_df.apply(max,axis=0)
+# 
+# RPS4Y1     1.0
+# XIST       1.0
+# KRT5       1.0
+# AGR2       1.0
+# CEACAM5    1.0
+#           ... 
+# GDPD3      1.0
+# SMAGP      1.0
+# C2orf85    1.0
+# POU5F1B    1.0
+# CHST2      1.0
+# Length: 5000, dtype: float64
+# 
+# rnaseq_df.apply(min,axis=1)
+# 
+# TCGA-02-0047-01    0.0
+# TCGA-02-0055-01    0.0
+# TCGA-02-2483-01    0.0
+# TCGA-02-2485-01    0.0
+# TCGA-02-2486-01    0.0
+#                   ... 
+# TCGA-ZS-A9CG-01    0.0
+# TCGA-ZT-A8OM-01    0.0
+# TCGA-ZU-A8S4-01    0.0
+# TCGA-ZU-A8S4-11    0.0
+# TCGA-ZX-AA5X-01    0.0
+# Length: 10459, dtype: float64
+# 
+# rnaseq_df.apply(max,axis=1)
+# 
+# TCGA-02-0047-01    1.000000
+# TCGA-02-0055-01    0.911690
+# TCGA-02-2483-01    0.943803
+# TCGA-02-2485-01    0.990446
+# TCGA-02-2486-01    0.951420
+#                      ...   
+# TCGA-ZS-A9CG-01    0.994129
+# TCGA-ZT-A8OM-01    1.000000
+# TCGA-ZU-A8S4-01    0.987908
+# TCGA-ZU-A8S4-11    0.997155
+# TCGA-ZX-AA5X-01    0.912283
+# Length: 10459, dtype: float64
+# 
