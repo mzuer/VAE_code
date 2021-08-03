@@ -38,6 +38,11 @@ import tensorflow.compat.v1.keras.backend as K
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.global_variables_initializer()
 
+#tf.reset_default_graph() 
+
+
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 inputfolder=os.path.join("tybalt-master", "data")
 
@@ -178,15 +183,11 @@ rnaseq_reconstruct = decoder_to_reconstruct(z)
 #
 # The VAE is compiled with an Adam optimizer and built-in custom loss function. The `loss_weights` parameter ensures beta is updated at each epoch end callback
 
-#adam =  tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate) 
-#adam = optimizers.Adam(lr=learning_rate)  ## v1 - true one
-adam= tf.keras.optimizers.Adam(0.001)
+adam = optimizers.Adam(lr=learning_rate)  ## v1 - true one
 vae_layer = CustomVariationalLayer()([rnaseq_input, rnaseq_reconstruct])
 vae = Model(rnaseq_input, vae_layer)
 vae.compile(optimizer=adam, loss=None, loss_weights=[beta]) ## v1 - true one
 
-tf.compat.v1.global_variables_initializer()
-tf.compat.v1.local_variables_initializer()
 
 vae.summary()
 

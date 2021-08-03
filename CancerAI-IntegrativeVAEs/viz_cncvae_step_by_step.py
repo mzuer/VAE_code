@@ -245,6 +245,11 @@ print('... written: ' + out_file_name)
 
 
 
+sns.clustermap(pd.DataFrame(mrna_data.T), col_colors=col_colors)
+
+
+
+
 ##### a way to get the hierarchy:
 from scipy.spatial import distance
 from scipy.cluster import hierarchy
