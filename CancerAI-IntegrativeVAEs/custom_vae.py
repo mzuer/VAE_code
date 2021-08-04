@@ -3,7 +3,7 @@ import datetime
 start_time = str(datetime.datetime.now().time())
 print('> START: custom_vae.py \t' + start_time)
 
-3# python custom_vae.py
+# python custom_vae.py
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import optimizers
