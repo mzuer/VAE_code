@@ -20,6 +20,13 @@ batch_size <- 128
 outsuffix <-  paste0("_" , n_epochs, "epochs_" ,batch_size,  "bs")
 
 
+# load raw data for the labels
+# load the latent representation
+# try some metric for differentiating if good clustering
+
+
+
+
 ### load the model
 vae_model_file <- file.path(modelRunFolder, paste0("vae_", n_epochs, "epochs_", batch_size, "bs.h5"))
 vae <- load_model_hdf5(vae_model_file)

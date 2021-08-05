@@ -383,8 +383,16 @@ print('... written: ' + out_file_name)
 
 
 ## pairplot for the top 4 (top min and top max)
-top2_max = list(cles_dt_sorted.LD[0:2].values.astype(np.str))
-top2_min = list(cles_dt_sorted.LD[-2:].values.astype(np.str))
+### be careful with index name and rownames!!!
+top2_max_v1 = list(cles_dt_sorted.LD[0:2].values.astype(np.str))
+top2_min_v1 = list(cles_dt_sorted.LD[-2:].values.astype(np.str))
+top2_max = list(cles_dt_sorted.LD.values[0:2].astype(np.str))
+top2_min = list(cles_dt_sorted.LD.values[-2:].astype(np.str))
+
+assert top2_max[0] == top2_max_v1[0]
+assert top2_max[1] == top2_max_v1[1]
+assert top2_min[0] == top2_min_v1[0]
+assert top2_min[1] == top2_min_v1[1]
 
 top2_dt = sub_dt.copy()
 top2_dt = top2_dt[top2_min+top2_max+['ER_Status']]

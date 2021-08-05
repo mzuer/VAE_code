@@ -1,5 +1,5 @@
 
-# Rscript pre_sc_time_data.R
+# Rscript prep_sc_time_data.R
 
 
 startTime <- Sys.time()
@@ -32,8 +32,8 @@ cts <- assays(experiments(mae)[["gene"]])[["count_lstpm"]]
 tpms <- assays(experiments(mae)[["gene"]])[["TPM"]]
 phn <- colData(mae)
 
-# sce <- newSCESet(countData = cts, 
-#                  phenoData = new("AnnotatedDataFrame", data = as.data.frame(phn)))
+sce <- newSCESet(countData = cts,
+                 phenoData = new("AnnotatedDataFrame", data = as.data.frame(phn)))
 # newSCEset was removed from latest version of scater !
 cat("> Build SingleCellExperiment\n")
 sce <- SingleCellExperiment(countData = cts, 

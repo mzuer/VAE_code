@@ -1,10 +1,19 @@
 
+# python nd_metabric_mrna.py
+
 import sys,os
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
 import re
+import random
+import datetime
+
+start_time = str(datetime.datetime.now().time())
+
+random.seed(123)
+
 
 import matplotlib.pyplot as plt
 
@@ -33,8 +42,8 @@ from ND.helpers import expand_grid
 
 from torch.utils.data import TensorDataset, DataLoader
 
-from torch.distributions.uniform import Uniform
-from torch.distributions.normal import Normal
+#from torch.distributions.uniform import Uniform
+#from torch.distributions.normal import Normal
 
 #####################
 # load the data
@@ -60,7 +69,6 @@ mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ \
 (mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
 
 # will use the 'ER_Status' as condition
-
 tokeep = np.where( (df[covarLab].values == "pos") | (df[covarLab].values == "neg"))
 mrna_data_filt = mrna_data_scaled[list(tokeep[0]),:]
 
@@ -101,7 +109,7 @@ n_covariates = 1
 hidden_dim = 32 # init value: 32
 latent_dim = 1 # init value: 1
 
-n_iter_integrals = 300 # init value 25000 
+n_iter_integrals = 25000 # init value 25000 
 logging_freq_integrals = 100 # init value 100
 grid_nsteps = 15 # init value 15
 
@@ -320,7 +328,7 @@ for i_ld in range(latent_dim):
         i_ypred = np.array(Y_pred[:,i_g])
         i_y = np.array(Y[:,i_g])
         
-        xlab = "LD "+str(i_ld)+1
+        xlab = "LD "+str(i_ld+1)
 
         ### Y vs mu_z
         corr_, p_value = spearmanr(i_latent_repr, i_y)
@@ -338,7 +346,7 @@ for i_ld in range(latent_dim):
         corr_, p_value = spearmanr(i_latent_repr, i_ypred)
         fig, ax = plt.subplots(figsize=(6,6))
         sns.scatterplot(x=i_latent_repr, y=i_ypred, hue=plt_hue)
-        plt.title(gene_names[i] + " (SCC={:.4f} - pval={:.2e})".format(corr_, p_value))
+        plt.title(gene_names[i_g] + " (SCC={:.4f} - pval={:.2e})".format(corr_, p_value))
         plt.xlabel(xlab)
         plt.ylabel("Pred. gene expr (gene " + str(i_g+1) + "=" +gene_names[i_g] +")")
         out_file_name = os.path.join(outfolder, 'Ypred_vs_mu_z_LD' + str(i_ld+1)+'_feature'+str(i_g+1) + outsuffix +'.png')
@@ -440,13 +448,123 @@ expvar_dt *= 100
 fig, ax = plt.subplots(figsize=(10,6))
 sns.violinplot(data=expvar_dt, color="0.8")
 sns.stripplot(data=expvar_dt, jitter=True, zorder=1)
-plt.title("Fraction of variation explained")
+plt.title("Fraction of variance explained")
 plt.ylabel("% variance explained")
 out_file_name = os.path.join(outfolder, 'sparsity_mask_for_'+sm_col+'_LD'+str(i_ld+1) + outsuffix + '.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 plt.close()
 
+
+############## show some example of variance explained for some selected genes
+# top ranking p-value t test 
+tokeep_pos = np.where(df[covarLab].values == "pos") 
+mrna_data_pos = mrna_data_scaled[list(tokeep_pos[0]),:]
+
+tokeep_neg = np.where(df[covarLab].values == "neg") 
+mrna_data_neg = mrna_data_scaled[list(tokeep_neg[0]),:]
+
+assert mrna_data_neg.shape[0] + mrna_data_pos.shape[0] == mrna_data_filt.shape[0]
+assert mrna_data_pos.shape[1] == mrna_data_filt.shape[1]
+assert mrna_data_neg.shape[1] == mrna_data_pos.shape[1] 
+
+all_mwu_pvals = []
+all_cles = []
+
+from pingouin import mwu
+
+
+for i in range(mrna_data_pos.shape[1]):
+    gene_i_pos = mrna_data_pos[:,i]
+    gene_i_neg = mrna_data_neg[:,i]
+    mwu_test = mwu(x=gene_i_pos, y=gene_i_neg, tail="two-sided")
+    p_val = float(mwu_test['p-val'])
+    cles = float(mwu_test['CLES'])
+    all_mwu_pvals.append(p_val)
+    all_cles.append(cles)
+    
+assert len(all_mwu_pvals) == nfeatures
+assert len(all_cles) == nfeatures        
+
+#all_cles_05 = np.vectorize(lambda x: x-0.5)(all_cles)
+    
+mwu_dt = pd.DataFrame({'gene':gene_names,'MWU_pvals': all_mwu_pvals, 'CLES':all_cles})
+mwu_dt['CLES_05'] = mwu_dt['CLES'] - 0.5 
+mwu_dt['CLES_05_abs'] = abs(mwu_dt['CLES_05'])
+mwu_dt_sorted = mwu_dt.sort_values(by='CLES_05_abs', ascending=False, axis=0)
+
+ntopgenes = 5
+
+for top_g in range(ntopgenes):
+    # retrieve matching column
+    gene_idx = [i for i,x in enumerate(gene_names) if x == mwu_dt_sorted.gene.values[top_g]]
+    assert len(gene_idx) == 1
+    gene_idx = gene_idx[0]
+    top_gene = gene_names[gene_idx]
+    assert top_gene == mwu_dt_sorted.gene.values[top_g]
+    # retrieve variance explained
+    gene_var_dt = pd.DataFrame(expvar_dt.iloc[gene_idx,:]).T
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(data=gene_var_dt)
+    plt.title("Fraction of variation explained - " + top_gene)
+    plt.ylabel("% variance explained")
+    plt.xlabel("(ER_Status CLES top gene # " + str(top_g+1)+")")
+    out_file_name = os.path.join(outfolder, 'variance_explained_CLES_top' + str(top_g+1)+'_'+ top_gene + outsuffix + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    
+    
+mwu_dt_sorted = mwu_dt.sort_values(by='CLES_05_abs', ascending=True, axis=0)
+
+for top_g in range(ntopgenes):
+    # retrieve matching column
+    gene_idx = [i for i,x in enumerate(gene_names) if x == mwu_dt_sorted.gene.values[top_g]]
+    assert len(gene_idx) == 1
+    gene_idx = gene_idx[0]
+    top_gene = gene_names[gene_idx]
+    assert top_gene == mwu_dt_sorted.gene.values[top_g]
+    # retrieve variance explained
+    gene_var_dt = pd.DataFrame(expvar_dt.iloc[gene_idx,:]).T
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(data=gene_var_dt)
+    plt.title("Fraction of variation explained - " + top_gene)
+    plt.ylabel("% variance explained")
+    plt.xlabel("(ER_Status CLES bottom gene # " + str(top_g+1)+")")
+    out_file_name = os.path.join(outfolder, 'variance_explained_CLES_bottom' + str(top_g+1)+'_'+ top_gene + outsuffix + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+
+rd_idxs = random.sample(range(0, nfeatures), ntopgenes)
+
+r_i=0
+rd_idx = rd_idxs[r_i]
+
+for r_i, rd_idx in enumerate(rd_idxs):
+    # retrieve matching column
+    gene_idx = rd_idx
+    rd_gene = gene_names[gene_idx]
+    # retrieve variance explained
+    gene_var_dt = pd.DataFrame(expvar_dt.iloc[gene_idx,:]).T
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(data=gene_var_dt)
+    plt.title("Fraction of variation explained - " + rd_gene)
+    plt.ylabel("% variance explained")
+    plt.xlabel("(random gene # " + str(r_i+1)+")")
+    out_file_name = os.path.join(outfolder, 'variance_explained_random' + str(r_i + 1)+'_'+ rd_gene + outsuffix + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+
+#None available
+# annotated_genes = 
+
+#********************
+#********************
+#********************
+print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+sys.exit(0)
 
 # RERG (Ras-like, oestrogen-regulated, growth-inhibitor) expression in breast cancer: 
 # a marker of ER-positive luminal-like subtype
@@ -469,6 +587,17 @@ plt.close()
 #  for the same gene on the microarrays gave highly concordant results.
 # Four genes were found downregulated in the ER-positive group. 
 # Three of these coded for immunoglobulin light or heavy chains (IGHG1/IGH@, IGHG3/IGH@, and IGLC2). Expression of immunoglobulins is known to be associated with the infiltration of lymphocytes in the tumor. This, in turn, is inversely correlated to the ER status.2, 4
+
+
+#annot_genes = ['ESR1','SLC39A6', 'FOXA1','GATA3','HADHA', 'SLC1A4' ,'COL10A1']
+#av_annot = [x for x in annot_genes if x in gene_names]
+# None...
+
+# 'VEGF' in gene_names
+# Out[385]: False
+# 
+# 'REG' in gene_names
+# Out[386]: False
 
 ### added MZ
 # from     def fraction_of_variance_explained(self, z, c, account_for_noise=False, divide_by_total_var=True):
