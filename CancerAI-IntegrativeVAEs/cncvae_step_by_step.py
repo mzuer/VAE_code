@@ -304,23 +304,29 @@ plt.close()
 
 #################### look at the weights
 
-#vae_weights = model.load(vae_weights_150epochs_128bs.h5
+#vae_weights = model.load(vae_weights_150epochs_128bs.h5)
 # from keras.models import load_model
 # vae_loaded = load_model('CNCVAE_STEP_BY_STEP/vae_150epochs_128bs.h5')
 
 vae_loaded = vae
 
 all_weights = dict()
+all_bias = dict()
 
 i=0
 for layer in vae_loaded.layers:
-  print(i)
+  print("> Layer # " + str(i))
   i+=1
   print(layer.name)
-  print("Weights")
+  #print("Weights")
+  print(len(layer.get_weights()))
   if len(layer.get_weights()) > 0: 
-      print("Shape: ",layer.get_weights()[0].shape,'\n')
+      print("...Shape weights: ",layer.get_weights()[0].shape)
       all_weights[layer.name] = layer.get_weights()[0]
+      print("...Shape biases: ",layer.get_weights()[1].shape)
+      all_bias[layer.name] = layer.get_weights()[1]
+  else:
+      print("No weights/biases")
 
 # vae_loaded.layers[0].get_weights()[0]
 # first_layer_weights = model.layers[0].get_weights()[0]
@@ -426,7 +432,8 @@ plt.savefig(out_file_name, dpi=300)
 print('... written: ' + out_file_name)
 plt.close()
 
-      
+
+    
 #################### END
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 
@@ -435,9 +442,19 @@ print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time())
 decoder.predict(encoder.predict(mrna_data_scaled, batch_size=batch_size)[2], batch_size=batch_size)
 vae.predict(mrna_data_scaled, batch_size=batch_size)
 
-# => why it is not the same ????
+# => why it is not the same ???? => because some randomness in the data generation
+# NB: this is indeed the reason why VAE useful for generating images !
 
-
+#retrieve encoder weights
+encoder_weights = vae.get_layer('encoder').get_layer('encoding').get_weights()[0]
+encoder_weights2 = vae.get_layer('encoding').get_weights()[0]
+np.all(np.equal(encoder_weights, encoder_weights2))
+# for the decoder: the out layer is nested into the decoder layer, 
+# so to access it should do:
+decoder_weights = vae.get_layer('decoder').get_layer('out').get_weights()[0]
+# decoder_weights = vae.get_layer('out').get_weights()[0] not possible !!!
+assert encoder_weights.shape[0] == decoder_weights.shape[1]
+assert encoder_weights.shape[1] == decoder_weights.shape[0]
 #### retrieve the normal z vect
 # then iteratively shut down one LD (set all values to 0)
 # use it as input for the decoder

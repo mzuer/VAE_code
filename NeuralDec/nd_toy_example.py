@@ -61,7 +61,7 @@ Y = (Y - Y.mean(axis=0, keepdim=True)) / Y.std(axis=0, keepdim=True)
 data_dim = Y.shape[1]
 n_covariates = 1
 hidden_dim = 32 # init value: 32
-latent_dim = 1 # init value: 1
+latent_dim = 2 # init value: 1
 
 n_iter_integrals = 2000 # init value 25000 
 logging_freq_integrals = 50 # init value 100
