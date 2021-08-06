@@ -114,7 +114,7 @@ n_covariates = 1
 hidden_dim = 32 # init value: 32
 latent_dim = 1 # init value: 1
 
-n_iter_integrals = 500 # init value 25000 
+n_iter_integrals = 25000 # init value 25000 
 logging_freq_integrals = 100 # init value 100
 grid_nsteps = 15 # init value 15
 
@@ -503,59 +503,85 @@ for var_type in tmp_dt.columns:
     tmp2_dt = tmp_dt.sort_values(by=var_type, axis=0, ascending=False)
         
     for i_top in range(ntopvar_genes_toplot):
-         # first the barplot
+         
         i_gene_name = tmp2_dt.iloc[i_top,:]['gene']
         i_gene_idx = tmp2_dt.iloc[i_top,:]['i_gene']
+        
+        outsuffix_2 = "_" + i_gene_name + "_var_" + var_type + "_top" + str(i_top+1) + outsuffix
+
+        # first the barplot
+
         fig, ax = plt.subplots(figsize=(10,6))
         sns.barplot(data=pd.DataFrame(tmp2_dt.iloc[i_top,:][['z', 'c', 'cz']]).T)
         plt.title("Fraction of variance explained - " + i_gene_name)
         plt.ylabel("% variance explained")
         plt.xlabel("Top " + str(i_top+1) + " expl. var. " + var_type  + " - " + i_gene_name)
-        out_file_name = os.path.join(outfolder, 'fract_explained_var_feature_'+str(i+1) + outsuffix + '.png')
+        out_file_name = os.path.join(outfolder, 'fract_explained_var_' + i_gene_name + outsuffix_2 + '.png')
         plt.savefig(out_file_name, dpi=300) 
         print('... written: ' + out_file_name)
         plt.close()
         
+        
+        yaxmin= min(list(Y[:, i_gene_idx].numpy()) + list(Y_pred[:, i_gene_idx].numpy()) +
+                    list(Y_pred_c[:, i_gene_idx].numpy()) +
+                    list(Y_pred_z[:, i_gene_idx].numpy()) +
+                    list(Y_pred_cz[:, i_gene_idx].numpy()) 
+                    )
+        yaxmax= max(list(Y[:, i_gene_idx].numpy()) + list(Y_pred[:, i_gene_idx].numpy()) +
+                    list(Y_pred_c[:, i_gene_idx].numpy()) +
+                    list(Y_pred_z[:, i_gene_idx].numpy()) +
+                    list(Y_pred_cz[:, i_gene_idx].numpy()) 
+                    )            
 
-
-            # mapping ND
-            # mapping fz
-            # mapping fc
-            # mapping fcz
-            
-
-            
-    plt.scatter(x=mu_z, y=Y_pred[:, i_gene_idx], c=c.reshape(-1))
-    plt.ylim([-2.5, 2.5])
-    plt.title("Feature " + str(i+1) + " - ND")
-    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_ND_pred' + outsuffix + '.png')
-    plt.savefig(out_file_name, dpi=300) 
-    print('... written: ' + out_file_name)
-    plt.close()
+        
+                # observed
+        plt.scatter(x=mu_z, y=Y[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+        plt.ylim([yaxmin, yaxmax])
+        plt.ylabel("Observed values")
+        plt.xlabel("z")
+        plt.title("Observed data " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+        out_file_name = os.path.join(outfolder, 'mapping_z_to_obs' + outsuffix_2 + '.png')
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+        # mapping ND
+        plt.scatter(x=mu_z, y=Y_pred[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+        plt.ylim([yaxmin, yaxmax])
+        plt.xlabel("z")
+        plt.title("ND " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+        out_file_name = os.path.join(outfolder, 'mapping_z_to_ND_pred' + outsuffix_2 + '.png')
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+        # mapping fz
+        plt.scatter(x=mu_z, y=Y_pred_z[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+        plt.ylim([yaxmin, yaxmax])
+        plt.xlabel("z")
+        plt.title("f(z) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+        out_file_name = os.path.join(outfolder, 'mapping_z_to_fz_predz' + outsuffix_2 + '.png')         
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+        # mapping fc
+        plt.scatter(x=mu_z, y=Y_pred_c[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+        plt.ylim([yaxmin, yaxmax])
+        plt.xlabel("z")
+        plt.title("f(c) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+        out_file_name = os.path.join(outfolder, 'mapping_z_to_fc_predc' + outsuffix_2 + '.png')         
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+        # mapping fcz
+        plt.scatter(x=mu_z, y=Y_pred_cz[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+        plt.ylim([yaxmin, yaxmax])
+        plt.xlabel("z")
+        plt.title("f(cz) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+        out_file_name = os.path.join(outfolder, 'mapping_z_to_fcz_predcz' + outsuffix_2 + '.png')         
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+                
     
-    
-    
-    plt.scatter(x=mu_z, y=Y_pred_z[:, i], c=c.reshape(-1))
-    plt.ylim([-2.5, 2.5])
-    plt.title("Feature " + str(i+1) + " - f(z)")
-    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fz_predz' + outsuffix + '.png')         
-    plt.savefig(out_file_name, dpi=300) 
-    print('... written: ' + out_file_name)
-    plt.close()
-    plt.scatter(x=mu_z, y=Y_pred_c[:, i], c=c.reshape(-1))
-    plt.ylim([-2.5, 2.5])
-    plt.title("Feature " + str(i+1) + " - f(c)")
-    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fc_predc' + outsuffix + '.png')         
-    plt.savefig(out_file_name, dpi=300) 
-    print('... written: ' + out_file_name)
-    plt.close()
-    plt.scatter(x=mu_z, y=Y_pred_cz[:, i], c=c.reshape(-1))
-    plt.ylim([-2.5, 2.5])
-    plt.title("Feature " + str(i+1) + " - f(cz)")
-    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fcz_predcz' + outsuffix + '.png')         
-    plt.savefig(out_file_name, dpi=300) 
-    print('... written: ' + out_file_name)
-    plt.close()
     
 
 ############## show some example of variance explained for some selected genes
