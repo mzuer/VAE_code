@@ -207,7 +207,6 @@ cncvae = CNCVAE(args)
 cncvae.build_model()
 
 # training data
-import pandas as pd
 #df=pd.read_csv(r'C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\data\MBdata_33CLINwMiss_1KfGE_1KfCNA.csv') # dataset available in github repo
 df=pd.read_csv(os.path.join('data','MBdata_33CLINwMiss_1KfGE_1KfCNA.csv')) # dataset available in github repo
 mrna_data = df.iloc[:,34:1034].copy().values

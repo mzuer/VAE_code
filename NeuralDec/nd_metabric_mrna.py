@@ -9,6 +9,9 @@ import pandas as pd
 import re
 import random
 import datetime
+import seaborn as sns
+from scipy.stats import spearmanr
+from pingouin import mwu
 
 start_time = str(datetime.datetime.now().time())
 
@@ -44,6 +47,9 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #from torch.distributions.uniform import Uniform
 #from torch.distributions.normal import Normal
+
+
+#runModel = True
 
 #####################
 # load the data
@@ -87,7 +93,6 @@ assert np.all((c_data_bin == 1) | (c_data_bin==0))
 # Choose device (i.e. CPU or GPU)
 device = "cpu"
 
-
 N = input_data.shape[0]
 nsamp = N
 assert len(sample_labels) == nsamp
@@ -109,7 +114,7 @@ n_covariates = 1
 hidden_dim = 32 # init value: 32
 latent_dim = 1 # init value: 1
 
-n_iter_integrals = 25000 # init value 25000 
+n_iter_integrals = 500 # init value 25000 
 logging_freq_integrals = 100 # init value 100
 grid_nsteps = 15 # init value 15
 
@@ -200,7 +205,15 @@ nfeatures = Y.shape[1]
 assert integrals.shape[0] == nfeatures * (grid_nsteps * 2 + 2)
 assert integrals.shape[1] == (n_iter_integrals//logging_freq_integrals)
 
+#sys.exit(0)
+
+
 # ### Diagnostics and interpretation of the model fit
+out_file_name = os.path.join(outfolder, 'model_loss' + outsuffix + '.png')
+sns.lineplot(y=loss,x=range(len(loss)), linestyle='-', marker='o')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
 
 # First let's see if the integrals have converged sufficiently close to zero
 def plot_integrals(integrals):
@@ -224,17 +237,34 @@ with torch.no_grad():
     mu_z, sigma_z = encoder(Y.to(device), c.to(device))
     # predictions from the decoder
     Y_pred = decoder(mu_z, c.to(device))
+    
+    # get also decomposition
+    Y_pred_c = decoder.forward_c(c.to(device))
+    Y_pred_cz = decoder.forward_cz(mu_z, c.to(device))
+    Y_pred_z = decoder.forward_z(mu_z)
 
     # output to CPU
     mu_z, sigma_z = mu_z.cpu(), sigma_z.cpu()
     Y_pred = Y_pred.cpu()
-
+    Y_pred_c = Y_pred_c.cpu()
+    Y_pred_cz = Y_pred_cz.cpu()
+    Y_pred_z = Y_pred_z.cpu()
+    
+    
 assert Y_pred.shape[0] == Y.shape[0]
 assert Y_pred.shape[1] == Y.shape[1]
 assert Y_pred.shape[0] == nsamp
 assert Y_pred.shape[1] == nfeatures
 assert mu_z.shape[1] == latent_dim
 assert mu_z.shape[0] == nsamp
+assert Y_pred_c.shape[0] == nsamp
+assert Y_pred_c.shape[1] == nfeatures
+assert Y_pred_cz.shape[0] == nsamp
+assert Y_pred_cz.shape[1] == nfeatures
+assert Y_pred_z.shape[0] == nsamp
+assert Y_pred_z.shape[1] == nfeatures
+
+
 
 # ### Inferred sparsity masks
 with torch.no_grad():
@@ -253,7 +283,6 @@ assert sparsity.shape[1] == latent_dim + n_covariates + 1 # ???????
 # there is only one for the moment ?
 # for each gene I have expression for all samples
 # that I can correlate with the LD values (1 per sample)
-from scipy.stats import spearmanr
 
 latent_repr = np.array(mu_z)
 
@@ -309,7 +338,7 @@ assert np.all(np.equal(Y.numpy().astype(np.float32), input_data.astype(np.float3
 
 assert Y_pred.shape[1] == len(gene_names)
 
-import seaborn as sns
+ntopvar_genes_toplot = 3
 
 ntop_genes_toplot = 5
 
@@ -455,6 +484,79 @@ plt.savefig(out_file_name, dpi=300)
 print('... written: ' + out_file_name)
 plt.close()
 
+# for the top-ranking of variance explained, decompose the curve
+tmp_dt = expvar_dt.copy()
+ntopvar_genes_toplot = 3
+
+# I need to retrieve the top genes for each of the variance
+# for each variance (c, z, or cz) -> sort the table
+# and retrieve the ntopvar_genes_toplot
+# for each of this gene
+# 1) do the barplot
+# 2) plot the mapping ND, fz, fc, fcz
+var_type = tmp_dt.columns[0] # plot the
+i_top = 0
+
+for var_type in tmp_dt.columns:
+    tmp_dt['gene'] = gene_names
+    tmp_dt['i_gene'] = range(len(gene_names))
+    tmp2_dt = tmp_dt.sort_values(by=var_type, axis=0, ascending=False)
+        
+    for i_top in range(ntopvar_genes_toplot):
+         # first the barplot
+        i_gene_name = tmp2_dt.iloc[i_top,:]['gene']
+        i_gene_idx = tmp2_dt.iloc[i_top,:]['i_gene']
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.barplot(data=pd.DataFrame(tmp2_dt.iloc[i_top,:][['z', 'c', 'cz']]).T)
+        plt.title("Fraction of variance explained - " + i_gene_name)
+        plt.ylabel("% variance explained")
+        plt.xlabel("Top " + str(i_top+1) + " expl. var. " + var_type  + " - " + i_gene_name)
+        out_file_name = os.path.join(outfolder, 'fract_explained_var_feature_'+str(i+1) + outsuffix + '.png')
+        plt.savefig(out_file_name, dpi=300) 
+        print('... written: ' + out_file_name)
+        plt.close()
+        
+
+
+            # mapping ND
+            # mapping fz
+            # mapping fc
+            # mapping fcz
+            
+
+            
+    plt.scatter(x=mu_z, y=Y_pred[:, i_gene_idx], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - ND")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_ND_pred' + outsuffix + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    
+    
+    
+    plt.scatter(x=mu_z, y=Y_pred_z[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(z)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fz_predz' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    plt.scatter(x=mu_z, y=Y_pred_c[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(c)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fc_predc' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    plt.scatter(x=mu_z, y=Y_pred_cz[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(cz)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fcz_predcz' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    
 
 ############## show some example of variance explained for some selected genes
 # top ranking p-value t test 
@@ -471,7 +573,6 @@ assert mrna_data_neg.shape[1] == mrna_data_pos.shape[1]
 all_mwu_pvals = []
 all_cles = []
 
-from pingouin import mwu
 
 
 for i in range(mrna_data_pos.shape[1]):

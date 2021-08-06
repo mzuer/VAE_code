@@ -1,11 +1,18 @@
 
+# python nd_toy_example.py
+
 import sys,os
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-
+import seaborn as sns
 import matplotlib.pyplot as plt
+import datetime
+
+
+start_time = str(datetime.datetime.now().time())
+
 
 wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','NeuralDec')
 os.chdir(wd)
@@ -29,7 +36,6 @@ from ND.helpers import expand_grid
 from torch.utils.data import TensorDataset, DataLoader
 
 from torch.distributions.uniform import Uniform
-from torch.distributions.normal import Normal
 
 # Choose device (i.e. CPU or GPU)
 device = "cpu"
@@ -61,11 +67,15 @@ Y = (Y - Y.mean(axis=0, keepdim=True)) / Y.std(axis=0, keepdim=True)
 data_dim = Y.shape[1]
 n_covariates = 1
 hidden_dim = 32 # init value: 32
-latent_dim = 2 # init value: 1
+latent_dim = 1 # init value: 1
 
-n_iter_integrals = 2000 # init value 25000 
-logging_freq_integrals = 50 # init value 100
-grid_nsteps = 12 # init value 15
+n_iter_integrals = 25000 # init value 25000 
+logging_freq_integrals = 100 # init value 100
+grid_nsteps = 15 # init value 15
+
+outsuffix = "_hd" + str(hidden_dim) + "_nLD" + str(latent_dim) +\
+   "_" + str(n_iter_integrals) + "_" + str(logging_freq_integrals) +"_"+str(grid_nsteps) 
+
 
 # with 5 features, integral shape: 160,25  
 # with 4 features, integral shape: 128,25
@@ -197,10 +207,26 @@ def plot_integrals(integrals):
 # 
 plot_integrals(integrals)
 
-out_file_name = os.path.join(outfolder, 'plot_integrals.png')
+out_file_name = os.path.join(outfolder, 'plot_integrals' + outsuffix + '.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 plt.close()
+
+# forward = mapping + sparsity mask
+# without sparsity mapping= forward
+#         value = self.mapping_z(z) # mapping = a NN
+#         if self.has_feature_level_sparsity:
+#             w = rsample_RelaxedBernoulli(self.temperature, self.qlogits_z)
+#             return w * value
+
+
+
+#     def forward_z(self, z):
+#     def forward_c(self, c):
+#     def forward_cz(self, z, c):
+#     def forward(self, z, c):
+#         return self.intercept + self.forward_z(z) + self.forward_c(c) + self.forward_cz(z, c)
+
 
 # Now let's look at the inferred $z$ values, together with the mappings $z \mapsto \text{features}$
 with torch.no_grad():
@@ -208,15 +234,22 @@ with torch.no_grad():
     mu_z, sigma_z = encoder(Y.to(device), c.to(device))
     # predictions from the decoder
     Y_pred = decoder(mu_z, c.to(device))
+    Y_pred_c = decoder.forward_c(c.to(device))
+    Y_pred_cz = decoder.forward_cz(mu_z, c.to(device))
+    Y_pred_z = decoder.forward_z(mu_z)
 
     # output to CPU
     mu_z, sigma_z = mu_z.cpu(), sigma_z.cpu()
     Y_pred = Y_pred.cpu()
+    Y_pred_c = Y_pred_c.cpu()
+    Y_pred_cz = Y_pred_cz.cpu()
+    Y_pred_z = Y_pred_z.cpu()
+
 
 # because this is synthetic data -> we have the true generative factor
 # ### Correlation between the ground truth $z$ and the inferred $z$ values
 plt.scatter(z, mu_z)
-out_file_name = os.path.join(outfolder, 'correlation_true_inferred.png')
+out_file_name = os.path.join(outfolder, 'correlation_true_inferred' + outsuffix + '.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 plt.close()
@@ -232,12 +265,35 @@ assert Y_pred.shape[0] == N
 assert Y_pred.shape[1] == nfeatures
 
 for i in range(nfeatures):
-    
     plt.scatter(x=mu_z, y=Y_pred[:, i], c=c.reshape(-1))
-    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'.png')
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - ND")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_ND_pred' + outsuffix + '.png')
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)
     plt.close()
+    plt.scatter(x=mu_z, y=Y_pred_z[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(z)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fz_predz' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    plt.scatter(x=mu_z, y=Y_pred_c[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(c)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fc_predc' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    plt.scatter(x=mu_z, y=Y_pred_cz[:, i], c=c.reshape(-1))
+    plt.ylim([-2.5, 2.5])
+    plt.title("Feature " + str(i+1) + " - f(cz)")
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_feature'+str(i+1)+'_fcz_predcz' + outsuffix + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+
 
 # ### Inferred sparsity masks
 
@@ -258,16 +314,32 @@ assert sparsity.shape[1] == latent_dim + n_covariates + 1 # ???????
 plt.imshow(sparsity)
 plt.colorbar()
 
-out_file_name = os.path.join(outfolder, 'sparsity_masks.png')
+out_file_name = os.path.join(outfolder, 'sparsity_masks' + outsuffix + '.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 plt.close()
 
 ### added MZ
 # 
-expvar_dt = decoder.fraction_of_variance_explained(z=mu_z, c=c)
-expvar_dt.shape
-# 4,3
+expvar_dt = pd.DataFrame(decoder.fraction_of_variance_explained(z=mu_z, c=c).numpy(),
+                         columns=['z', 'c', 'cz'])
+expvar_dt *= 100
+
+for i in range(expvar_dt.shape[0]):
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(data=pd.DataFrame(expvar_dt.iloc[i,:]).T)
+    plt.title("Feature " + str(i+1) + " - Fraction of variance explained")
+    plt.ylabel("% variance explained")
+    out_file_name = os.path.join(outfolder, 'fract_explained_var_feature_'+str(i+1) + outsuffix + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+
+print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
+sys.exit(0)
+
+
+
 
 # for a given feature, plot value across LS value
 
