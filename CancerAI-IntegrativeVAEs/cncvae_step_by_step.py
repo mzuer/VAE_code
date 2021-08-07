@@ -525,7 +525,7 @@ pred_rec_all_i = decoder.predict(emb_train, batch_size=batch_size)[i,:]
 sns.scatterplot(x=pred_rec_i[0], y=pred_rec_all_i)
 
 
-lds_to_traverse = [0]
+lds_to_traverse = [0,1,2,3]
 i_samp=0
 i_ld = 0
 iz=z_grid[0]
@@ -562,9 +562,9 @@ for i_ld in lds_to_show:
     for i_z, iz in enumerate(z_grid):
         ###plt.subplot(1, len(z_grid) + 1, i_z+2)
         ###plt.imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
-        axs[i_z+1].imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
-plt.show()
-
+        im=axs[i_z+1].imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
+    fig.colorbar(im)
+    plt.show()
 
 for i_ld in lds_to_show:
     #fig, axs = plt.subplots(1,len(z_grid)+1,figsize = (15,6))
@@ -577,10 +577,10 @@ for i_ld in lds_to_show:
         ###plt.subplot(1, len(z_grid) + 1, i_z+2)
         ###plt.imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
         mat_diff = all_traversals[str(i_ld)][str(iz)] - std_outputs
-        axs[i_z+1].imshow(mat_diff, aspect='auto', cmap="RdBu")
-plt.show()
+        im=axs[i_z+1].imshow(mat_diff, aspect='auto', cmap="RdBu")
 
-
+    fig.colorbar(im)
+    plt.show()
     
 
 
@@ -588,10 +588,10 @@ plt.show()
 
 ngenes = 2
 gene_i = 0
-nsamp=2
-lds_to_traverse=[0,1]
+nsamp=100
+lds_to_traverse=[int(x) for x in all_traversals.keys()]
 grid_cols = [str(x) for x in range(grid_nsteps)]
-id_cols =  ['i_gene','gene','i_samp', 'sampID', 'value_grid_SCC_coeff', 'value_grid_SCC_pval']
+id_cols =  ['i_gene','gene','i_samp', 'sampID', 'i_LD', 'value_grid_SCC_coeff', 'value_grid_SCC_pval']
 my_cols = id_cols + grid_cols
 
 all_samp_dt = pd.DataFrame(columns = my_cols)
@@ -599,25 +599,50 @@ all_samp_dt = pd.DataFrame(columns = my_cols)
 # if the aim is to identify a LD of interest based on gene input -> i_ld nested
 # if the aim is to identify a gene of interest -> i_gene nested
 
+i_gene=0
+i_samp=0
+i_ld=lds_to_traverse[0]
+iz=z_grid[0]
+
 for i_gene in range(ngenes):
     for i_samp in range(nsamp):
-        i_samp_i_gene_ldtravers = []
         for i_ld in lds_to_traverse:
+            i_samp_i_gene_ldtravers = []
             for iz in z_grid:
+                # retrieve the predicted matrix for the current grid value of this LD
                 curr_mat = all_traversals[str(i_ld)][str(iz)] 
                 assert curr_mat.shape[1] == 1000
                 i_samp_i_gene_ldtravers.append(curr_mat[i_samp,i_gene])
             assert len(i_samp_i_gene_ldtravers) == grid_nsteps
+            # correlation of the predicted expression with the grid value
             corr, p_val = spearmanr(i_samp_i_gene_ldtravers, z_grid)
             sns.scatterplot(x=z_grid, y =i_samp_i_gene_ldtravers)
             lt_dt = pd.DataFrame(i_samp_i_gene_ldtravers).T
             lt_dt.columns = grid_cols
-            id_dt = pd.DataFrame([i_gene, gene_names[i_gene],i_samp,samp_ids[i_samp], corr, p_val]).T
+            id_dt = pd.DataFrame([i_gene, gene_names[i_gene],i_samp,samp_ids[i_samp],i_ld, corr, p_val]).T
             id_dt.columns = id_cols
             ig_is_dt= pd.concat([id_dt, lt_dt], axis=1)
             all_samp_dt = pd.concat([all_samp_dt, ig_is_dt], axis=0)
         
-    
+# for a given gene, a given LD, boxplot of the predicted values along traversals
+i_gene = 0
+i_LD = 0
+sub_dt = all_samp_dt[(all_samp_dt['i_gene'] == i_gene) & (all_samp_dt['i_LD'] == i_LD)].copy()
+assert np.all(sub_dt ['i_gene'].values == i_gene)
+assert np.all(sub_dt ['i_LD'].values == i_LD)
+assert sub_dt.shape[0] > 0
+
+nsamp_trav = len(set(list(sub_dt['i_samp'])))
+assert sub_dt.shape[0] == nsamp_trav
+# do boxplot across LD variation
+box_data = sub_dt.copy()
+box_data = box_data[grid_cols]
+sns.boxplot(data=box_data)
+x=plt.xticks(list(range(len(z_grid))), list(z_grid.round(2)))
+x=plt.ylabel("Predicted gene expr.", size=12)
+x=plt.xlabel("Values of LD " + str(i_LD+1), size=12)
+x=plt.suptitle("Effect of LD variation on pred. expr. - " + gene_names[i_gene], size=14)
+x=plt.title("(# samp = "+str(nsamp_trav)+")", size=10)
 ##### compare with the correlations obtained 
 latent_repr = emb_train
 correlations_all=[]
@@ -640,6 +665,16 @@ correlations_all_df = pd.DataFrame(correlations_all.T, columns = df.iloc[:,34:10
 # columns -> retrieve column names from the original data frame
 p_values_all = np.array(p_values_all)
 p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].columns)
+
+# for each gene, for each LD, take the mean of the corr of expression with the traversal
+gene_mean_corr_trav = all_samp_dt.groupby(['i_gene', 'i_LD']).value_grid_SCC_coeff.apply(np.mean).reset_index().copy()
+
+corr_all_dt = pd.DataFrame(correlations_all)
+corr_all_dt['i_gene'] = range(corr_all_dt.shape[0])
+corr_all_m = pd.melt(corr_all_dt,id_vars=['i_gene'],var_name='i_LD', value_name='corr')
+
+cmp_dt = gene_mean_corr_trav.merge(corr_all_m, 'inner', on=['i_gene', 'i_LD'])
+sns.scatterplot(x=cmp_dt['corr'], y =cmp_dt['value_grid_SCC_coeff'])
 
 
     
