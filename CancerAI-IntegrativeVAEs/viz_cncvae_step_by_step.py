@@ -45,22 +45,6 @@ mrna_data = df.iloc[:,34:1034].copy().values
 # the values after are CNA, the values before are clinical data
 
 
-
-# plt.subplots() is a function that returns a tuple containing a figure and axes object(s). 
-# Thus when using fig, ax = plt.subplots() you unpack this tuple into the variables fig and ax. 
-# Having fig is useful if you want to change figure-level attributes or save the figure as an
-# image file later (e.g. with fig.savefig('yourfilename.png')). You certainly don't have to
- #use the returned figure object but many people do use it later so it's common to see.
-# Also, all axes objects (the objects that have plotting methods), have a parent figure
-# object anyway, thus:
-# fig, ax = plt.subplots()
-# is more concise than this:
-# fig = plt.figure()
-# ax = fig.add_subplot(111)
-
-
-
-
 ###########################################################################################
 ###########################################################################################
 ###########################################################################################
@@ -187,67 +171,16 @@ for i in [less_cor, pos_max, neg_min]:
     out_file_name = os.path.join(outfolder, i_gene + "_LD " + str(i_ld_idx+1) +"_top_correlations_scatterplot.png")
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)
-
+    plt.close()
 
 # for each gene: correlation with each of the latent dim -> 1000 x 64 (iterate over genes, iterate over LD)
-# _all.shape : 1000, 64
-#_all_df.shape: 64 x 1000
-
-
-# max(mrna_data_scaled[:,1])
-# Out[22]: 1.0
-# min(mrna_data_scaled[:,1])
-# Out[23]: 0.4649525747266828
-# min(mrna_data_scaled[1,:])
-# Out[24]: 0.0
-# max(mrna_data_scaled[1,:])
-# Out[25]: 1.0
-# => the data have been scaled by sample !
-
-# Hira et al. ovarian cancer
-# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) 
-# it guarantees multi-omics features will have the same scale45. Thus, all the features will
-#  have equal importance in the multi-omics analysis
-
-# VAE Cancer multi-omics integration
-# 1000 features of normalized gene expression numerical data, scaled to [0,1]
-
-# Franco et al. 2021
-# we scaled each data using the following equation.
-# Xn=Xi−xminxmax−xmin
-# (1)
-# where Xi is the data instance while xmax and xmin are the minimum and 
-# maximum absolute value of feature X respectively, and Xn is the feature after normalization. 
-
-# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) it 
-# guarantees multi-omics features will have the same scale45. Thus, all the features will have 
-# equal importance in the multi-omics analysis
-
-labels = df['Pam50Subtype'].values
-
-# seaborn.hls_palette(n_colors=6, h=0.01, l=0.6, s=0.65, as_cmap=False)
-#     Get a set of evenly spaced colors in HLS hue space.
-#     h, l, and s should be between 0 and 1
-#            n= number of colors in the palette
-#             h=first hue
-#             l=lightness
-#             s=saturation
-lut = dict(zip(set(labels), sns.hls_palette(len(set(labels)))))
-col_colors = pd.DataFrame(labels)[0].map(lut)
-
 
 # cluster samples by correlation of gene
-sns.clustermap(correlations_all_df, col_colors=col_colors)
-out_file_name = os.path.join(outfolder, 'correlations_clustermap.png')
+sns.clustermap(correlations_all_df)
+out_file_name = os.path.join(outfolder, 'correlations_SCC_clustermap.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
-
-
-
-sns.clustermap(pd.DataFrame(mrna_data.T), col_colors=col_colors)
-
-
+plt.close()
 
 
 ##### a way to get the hierarchy:
@@ -263,14 +196,22 @@ row_linkage = hierarchy.linkage(
 col_linkage = hierarchy.linkage(
     distance.pdist(correlations_array.T), method='average')
 
+#sns.clustermap(correlations_all_df, row_linkage=row_linkage, 
+               #col_linkage=col_linkage, col_colors=col_colors)
 sns.clustermap(correlations_all_df, row_linkage=row_linkage, 
-               col_linkage=col_linkage, col_colors=col_colors)
+               col_linkage=col_linkage)
+out_file_name = os.path.join(outfolder, 'correlations_pvals_clustermap_linkage.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
                
 # cluster samples by correlation pvals of gene
 sns.clustermap(p_values_all_df)
-out_file_name = os.path.join(outfolder, 'pvals_clustermap.png')
+out_file_name = os.path.join(outfolder, 'correlations_pvals_clustermap.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
+plt.close()
 
 # for each of the LD, barplot of the 30 most correlated genes
 for latent_dim_i in range(latent_dims):
@@ -280,7 +221,7 @@ for latent_dim_i in range(latent_dims):
 out_file_name = os.path.join(outfolder, 'correlations_barplot.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
     
 # for each of the LD, barplot of the 30 highest pvalues genes
@@ -291,7 +232,7 @@ for latent_dim_i in range(latent_dims):
 out_file_name = os.path.join(outfolder, 'pvalues_barplot.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
 
 #### association with er status
@@ -333,7 +274,7 @@ for i in range(1,65):
 out_file_name = os.path.join(outfolder, 'all_boxplots_ERexpr.png')
 fig.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
 cles_dt = pd.DataFrame({'LD':range(1,65),'pvals': dims_mwu_pvals, 'CLES': dims_mwu_cles})
 cles_dt['CLES_05'] = cles_dt['CLES']-0.5
@@ -369,7 +310,7 @@ plt.tight_layout()
 out_file_name = os.path.join(outfolder, 'all_barplots_CLES.png')
 fig.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
 max_cles_LD = cles_dt_sorted['LD'].iloc[0]
 min_cles_LD = cles_dt_sorted['LD'].iloc[-1]
@@ -380,7 +321,7 @@ g = sns.boxplot(x='ER_Status', y=str(min_cles_LD), data=sub_dt,ax=axs[1])
 out_file_name = os.path.join(outfolder, 'min_max_CLES_boxplot.png')
 fig.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
 ## pairplot for the top 4 (top min and top max)
 ### be careful with index name and rownames!!!
@@ -401,7 +342,7 @@ sns.pairplot(top2_dt, hue = 'ER_Status')
 out_file_name = os.path.join(outfolder, 'top2_CLES_LD_pairplot.png')
 fig.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
-
+plt.close()
 
 
 #********************
@@ -434,3 +375,64 @@ ld_df[ld_df.ER_Status != "?"]
 # ### alternative to compute CLES
 # from pingouin import compute_effsize
 # compute_effsize(x,y,paired=TRUE,eftype="CLES")
+
+# _all.shape : 1000, 64
+#_all_df.shape: 64 x 1000
+
+
+# max(mrna_data_scaled[:,1])
+# Out[22]: 1.0
+# min(mrna_data_scaled[:,1])
+# Out[23]: 0.4649525747266828
+# min(mrna_data_scaled[1,:])
+# Out[24]: 0.0
+# max(mrna_data_scaled[1,:])
+# Out[25]: 1.0
+# => the data have been scaled by sample !
+
+# Hira et al. ovarian cancer
+# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) 
+# it guarantees multi-omics features will have the same scale45. Thus, all the features will
+#  have equal importance in the multi-omics analysis
+
+# VAE Cancer multi-omics integration
+# 1000 features of normalized gene expression numerical data, scaled to [0,1]
+
+# Franco et al. 2021
+# we scaled each data using the following equation.
+# Xn=Xi−xminxmax−xmin
+# (1)
+# where Xi is the data instance while xmax and xmin are the minimum and 
+# maximum absolute value of feature X respectively, and Xn is the feature after normalization. 
+
+# We used the min-max normalisation as unlike other techniques (i.e., Z-score normalisation) it 
+# guarantees multi-omics features will have the same scale45. Thus, all the features will have 
+# equal importance in the multi-omics analysis
+
+
+# plt.subplots() is a function that returns a tuple containing a figure and axes object(s). 
+# Thus when using fig, ax = plt.subplots() you unpack this tuple into the variables fig and ax. 
+# Having fig is useful if you want to change figure-level attributes or save the figure as an
+# image file later (e.g. with fig.savefig('yourfilename.png')). You certainly don't have to
+ #use the returned figure object but many people do use it later so it's common to see.
+# Also, all axes objects (the objects that have plotting methods), have a parent figure
+# object anyway, thus:
+# fig, ax = plt.subplots()
+# is more concise than this:
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+ 
+ 
+ 
+labels = df['Pam50Subtype'].values
+
+# seaborn.hls_palette(n_colors=6, h=0.01, l=0.6, s=0.65, as_cmap=False)
+#     Get a set of evenly spaced colors in HLS hue space.
+#     h, l, and s should be between 0 and 1
+#            n= number of colors in the palette
+#             h=first hue
+#             l=lightness
+#             s=saturation
+#lut = dict(zip(set(labels), sns.hls_palette(len(set(labels)))))
+#col_colors = pd.DataFrame(labels)[0].map(lut)
+
