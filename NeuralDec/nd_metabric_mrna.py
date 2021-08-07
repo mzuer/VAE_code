@@ -118,13 +118,17 @@ n_iter_integrals = 25000 # init value 25000
 logging_freq_integrals = 100 # init value 100
 grid_nsteps = 15 # init value 15
 
+bs = 64 # init value 64 (batch size)
+
+min_grid_range = 0.0 # init value -2
+max_grid_range = 1.0 # init value -2
 
 outsuffix = "_hd" + str(hidden_dim) + "_nLD" + str(latent_dim) +\
  "_c" + str(covarLab) +  "_" + str(n_iter_integrals) + "_" + str(logging_freq_integrals) +"_"+str(grid_nsteps) 
 
 #dataset = TensorDataset(Y.to(device), c.to(device))
 dataset = TensorDataset(Y.to(device), c.to(device))
-data_loader = DataLoader(dataset, shuffle=True, batch_size=64)
+data_loader = DataLoader(dataset, shuffle=True, batch_size=bs)
 
 # Setting up the CVAE encoder + decoder
 
@@ -140,8 +144,8 @@ encoder_mapping = nn.Sequential(
 encoder = cEncoder(z_dim=latent_dim, mapping=encoder_mapping)
 
 ### DECOMPOSABLE DECODER
-grid_z = torch.linspace(-2.0, 2.0, steps=grid_nsteps).reshape(-1, 1).to(device)
-grid_c = torch.linspace(-2.0, 2.0, steps=grid_nsteps).reshape(-1, 1).to(device)
+grid_z = torch.linspace(min_grid_range, max_grid_range, steps=grid_nsteps).reshape(-1, 1).to(device)
+grid_c = torch.linspace(min_grid_range, max_grid_range, steps=grid_nsteps).reshape(-1, 1).to(device)
 grid_cz = torch.cat(expand_grid(grid_z, grid_c), dim=1).to(device)
 
 decoder_z = nn.Sequential(
@@ -172,7 +176,8 @@ decoder = Decoder(data_dim,
                   device=device)
 
 # Combine the encoder + decoder and fit the decomposable CVAE
-model = CVAE(encoder, decoder, lr=5e-3, device=device)
+#model = CVAE(encoder, decoder, lr=5e-3, device=device)
+model = CVAE(encoder, decoder, lr=1e-3, device=device)
 
 ## integrals come from:
 ### collect all integral values into one array
@@ -516,7 +521,7 @@ for var_type in tmp_dt.columns:
         plt.title("Fraction of variance explained - " + i_gene_name)
         plt.ylabel("% variance explained")
         plt.xlabel("Top " + str(i_top+1) + " expl. var. " + var_type  + " - " + i_gene_name)
-        out_file_name = os.path.join(outfolder, 'fract_explained_var_' + i_gene_name + outsuffix_2 + '.png')
+        out_file_name = os.path.join(outfolder, 'fract_explained_var'  + outsuffix_2 + '.png')
         plt.savefig(out_file_name, dpi=300) 
         print('... written: ' + out_file_name)
         plt.close()
@@ -582,7 +587,84 @@ for var_type in tmp_dt.columns:
         plt.close()
                 
     
+rd_idxs = random.sample(range(0, nfeatures), ntopvar_genes_toplot)
+for rd_i, i_gene_idx in enumerate(rd_idxs):
     
+    i_gene_name = gene_names[i_gene_idx]
+    i_top = rd_i
+    outsuffix_2 = "_" + i_gene_name + "_random_" + str(i_top+1) + outsuffix
+
+    # first the barplot
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.barplot(data=pd.DataFrame(tmp_dt.iloc[i_top,:][['z', 'c', 'cz']]).T)
+    plt.title("Fraction of variance explained - " + i_gene_name)
+    plt.ylabel("% variance explained")
+    plt.xlabel("Random " + str(i_top+1) + " " + i_gene_name)
+    out_file_name = os.path.join(outfolder, 'fract_explained_var'  + outsuffix_2 + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    
+    
+    yaxmin= min(list(Y[:, i_gene_idx].numpy()) + list(Y_pred[:, i_gene_idx].numpy()) +
+                list(Y_pred_c[:, i_gene_idx].numpy()) +
+                list(Y_pred_z[:, i_gene_idx].numpy()) +
+                list(Y_pred_cz[:, i_gene_idx].numpy()) 
+                )
+    yaxmax= max(list(Y[:, i_gene_idx].numpy()) + list(Y_pred[:, i_gene_idx].numpy()) +
+                list(Y_pred_c[:, i_gene_idx].numpy()) +
+                list(Y_pred_z[:, i_gene_idx].numpy()) +
+                list(Y_pred_cz[:, i_gene_idx].numpy()) 
+                )            
+
+    
+            # observed
+    plt.scatter(x=mu_z, y=Y[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+    plt.ylim([yaxmin, yaxmax])
+    plt.ylabel("Observed values")
+    plt.xlabel("z")
+    plt.title("Observed data " + i_gene_name + " (random" + str(i_top+1)+')')
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_obs' + outsuffix_2 + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    # mapping ND
+    plt.scatter(x=mu_z, y=Y_pred[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+    plt.ylim([yaxmin, yaxmax])
+    plt.xlabel("z")
+    plt.title("ND " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_ND_pred' + outsuffix_2 + '.png')
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    # mapping fz
+    plt.scatter(x=mu_z, y=Y_pred_z[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+    plt.ylim([yaxmin, yaxmax])
+    plt.xlabel("z")
+    plt.title("f(z) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_fz_predz' + outsuffix_2 + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    # mapping fc
+    plt.scatter(x=mu_z, y=Y_pred_c[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+    plt.ylim([yaxmin, yaxmax])
+    plt.xlabel("z")
+    plt.title("f(c) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_fc_predc' + outsuffix_2 + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+    # mapping fcz
+    plt.scatter(x=mu_z, y=Y_pred_cz[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
+    plt.ylim([yaxmin, yaxmax])
+    plt.xlabel("z")
+    plt.title("f(cz) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    out_file_name = os.path.join(outfolder, 'mapping_z_to_fcz_predcz' + outsuffix_2 + '.png')         
+    plt.savefig(out_file_name, dpi=300) 
+    print('... written: ' + out_file_name)
+    plt.close()
+            
 
 ############## show some example of variance explained for some selected genes
 # top ranking p-value t test 

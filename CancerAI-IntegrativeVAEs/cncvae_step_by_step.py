@@ -31,7 +31,7 @@ import seaborn as sns
 
 import math
 import umap
-
+import re
 
 wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','CancerAI-IntegrativeVAEs')
 os.chdir(wd)
@@ -74,6 +74,8 @@ n_samp = df.shape[0]
 n_genes = sum(['GE_' in x for x in df.columns])
 
 mrna_data = df.iloc[:,34:1034].copy().values 
+gene_names = [re.sub('GE_', '', x) for x in df.columns[34:1034]]
+samp_ids = df['METABRIC_ID']
 # the values after are CNA, the values before are clinical data
 # copy() for deep copy
 # values to convert to multidim array
@@ -395,7 +397,7 @@ sns.distplot(dec_weights, hist=True, kde=True,
              hist_kws={'edgecolor':'black'},
              kde_kws={'linewidth': 4})
 # Add labels
-plt.title('Dec. vs. enc. weights - gene . decoder weights')
+plt.title('Dist. decoder weights')
 plt.xlabel('Weights')
 plt.ylabel('Features (genes)')
 
@@ -423,7 +425,7 @@ sns.distplot(all_corrs, hist=True, kde=True,
              hist_kws={'edgecolor':'black'},
              kde_kws={'linewidth': 4})
 # Add labels
-plt.title('Dec. vs. enc. weights - gene . decoder weights')
+plt.title('Dec. vs. enc. weights correlation')
 plt.xlabel('')
 plt.ylabel('Correlations')
 
@@ -433,10 +435,218 @@ print('... written: ' + out_file_name)
 plt.close()
 
 
+#################### 
+#################### latent trasversal
+#################### 
+# plot the variance, those smaller than
+
+# from cncvae.predict():
+#encoder = Model(inputs, [z_mean, z_log_sigma, z], name='encoder')
+# sampling     return z_mean + K.exp(0.5 * z_log_var) * epsilon
+emb_logvar_train = pred_results[1]
+# 1980 x 64
+emb_var_train = K.exp(emb_logvar_train).numpy()
+
+all_mean_vars = pd.DataFrame(emb_var_train).apply(lambda x: sum(x)/len(x), axis=0)
+assert len(all_mean_vars) == latent_dims
+# plot histogram of mean variances
+sns.distplot(all_mean_vars, hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dist. mean var of LD')
+plt.xlabel('mean var')
+plt.ylabel('LD')
+
+out_file_name = os.path.join(outfolder, 'latent_dims_var_mean_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
+sns.distplot(emb_var_train.flatten(), hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dist. all var of LD')
+plt.xlabel('var')
+plt.ylabel('LD')
+
+out_file_name = os.path.join(outfolder, 'latent_dims_var_all_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
+# plot histogram of LD values
+all_mean_zmu = pd.DataFrame(emb_train).apply(lambda x: sum(x)/len(x), axis=0)
+sns.distplot(all_mean_zmu, hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dist. mean zmu of LD')
+plt.xlabel('mean zmu')
+plt.ylabel('LD')
+
+out_file_name = os.path.join(outfolder, 'latent_dims_zmu_mean_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
+sns.distplot(emb_train.flatten(), hist=True, kde=True, 
+             bins=int(180/5), color = 'darkblue', 
+             hist_kws={'edgecolor':'black'},
+             kde_kws={'linewidth': 4})
+# Add labels
+plt.title('Dist. all zmu of LD')
+plt.xlabel('var')
+plt.ylabel('LD')
+
+out_file_name = os.path.join(outfolder, 'latent_dims_zmu_all_distplot.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
+
+nsamp = mrna_data_scaled.shape[0]
+
+
+z_min = -4.0
+z_max = 4.0
+grid_nsteps = 10
+z_grid = np.linspace(z_min, z_max, num=grid_nsteps)
+
+pred_results_i = encoder.predict(pd.DataFrame(mrna_data_scaled[i,:]).T, batch_size=batch_size)[0]
+pred_results_all_i = encoder.predict(mrna_data_scaled, batch_size=batch_size)[0][i,:]
+sns.scatterplot(x=pred_results_i[0], y=pred_results_all_i)
+
+pred_rec_i = decoder.predict(pd.DataFrame(emb_train[i,:]).T, batch_size=batch_size)
+pred_rec_all_i = decoder.predict(emb_train, batch_size=batch_size)[i,:]
+sns.scatterplot(x=pred_rec_i[0], y=pred_rec_all_i)
+
+
+lds_to_traverse = [0]
+i_samp=0
+i_ld = 0
+iz=z_grid[0]
+# iterate over the LDs
+#for i_samp in range(nsamp):
+
+std_outputs = decoder.predict(emb_train, batch_size=batch_size)
+
+all_traversals = dict()
+
+for i_ld in lds_to_traverse:
+    all_traversals[str(i_ld)] = dict()    
+    intact_ld = emb_train.copy()
+    # traverse this LD, keep the other LD unchanged
+    for iz in z_grid:
+        new_ld = intact_ld.copy()
+        new_ld[:,i_ld] = iz
+        new_outputs = decoder.predict(new_ld, batch_size=batch_size)
+        assert new_outputs.shape == std_outputs.shape
+        all_traversals[str(i_ld)][str(iz)] = new_outputs
+
+### for a given LD, imshow of the mrna predicted by varying LD
+### for a given LD, imshow of the mrna predicted by varying LD - init predicted mrna
+
+lds_to_show = [0]
+i_ld = [0]
+for i_ld in lds_to_show:
+    #fig, axs = plt.subplots(1,len(z_grid)+1,figsize = (15,6))
+    fig, axs = plt.subplots(1,len(z_grid)+1,figsize = (30,6))
+    axs[0].imshow(std_outputs, aspect='auto')
+    ###plt.subplot(1, len(z_grid) + 1, 1,figsize=(15,6))
+    ###plt.imshow(std_outputs, aspect='auto')
+    # traverse this LD, keep the other LD unchanged
+    for i_z, iz in enumerate(z_grid):
+        ###plt.subplot(1, len(z_grid) + 1, i_z+2)
+        ###plt.imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
+        axs[i_z+1].imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
+plt.show()
+
+
+for i_ld in lds_to_show:
+    #fig, axs = plt.subplots(1,len(z_grid)+1,figsize = (15,6))
+    fig, axs = plt.subplots(1,len(z_grid)+1,figsize = (30,6))
+    axs[0].imshow(std_outputs, aspect='auto')
+    ###plt.subplot(1, len(z_grid) + 1, 1,figsize=(15,6))
+    ###plt.imshow(std_outputs, aspect='auto')
+    # traverse this LD, keep the other LD unchanged
+    for i_z, iz in enumerate(z_grid):
+        ###plt.subplot(1, len(z_grid) + 1, i_z+2)
+        ###plt.imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
+        mat_diff = all_traversals[str(i_ld)][str(iz)] - std_outputs
+        axs[i_z+1].imshow(mat_diff, aspect='auto', cmap="RdBu")
+plt.show()
+
+
+    
+
+
+
+
+ngenes = 2
+gene_i = 0
+nsamp=2
+lds_to_traverse=[0,1]
+grid_cols = [str(x) for x in range(grid_nsteps)]
+id_cols =  ['i_gene','gene','i_samp', 'sampID', 'value_grid_SCC_coeff', 'value_grid_SCC_pval']
+my_cols = id_cols + grid_cols
+
+all_samp_dt = pd.DataFrame(columns = my_cols)
+
+# if the aim is to identify a LD of interest based on gene input -> i_ld nested
+# if the aim is to identify a gene of interest -> i_gene nested
+
+for i_gene in range(ngenes):
+    for i_samp in range(nsamp):
+        i_samp_i_gene_ldtravers = []
+        for i_ld in lds_to_traverse:
+            for iz in z_grid:
+                curr_mat = all_traversals[str(i_ld)][str(iz)] 
+                assert curr_mat.shape[1] == 1000
+                i_samp_i_gene_ldtravers.append(curr_mat[i_samp,i_gene])
+            assert len(i_samp_i_gene_ldtravers) == grid_nsteps
+            corr, p_val = spearmanr(i_samp_i_gene_ldtravers, z_grid)
+            sns.scatterplot(x=z_grid, y =i_samp_i_gene_ldtravers)
+            lt_dt = pd.DataFrame(i_samp_i_gene_ldtravers).T
+            lt_dt.columns = grid_cols
+            id_dt = pd.DataFrame([i_gene, gene_names[i_gene],i_samp,samp_ids[i_samp], corr, p_val]).T
+            id_dt.columns = id_cols
+            ig_is_dt= pd.concat([id_dt, lt_dt], axis=1)
+            all_samp_dt = pd.concat([all_samp_dt, ig_is_dt], axis=0)
+        
+    
+##### compare with the correlations obtained 
+latent_repr = emb_train
+correlations_all=[]
+p_values_all=[]
+for gene_i in range(mrna_data.shape[1]):
+    correlations=[]
+    p_values=[]
+    for latent_dim_i in range(latent_dims):
+        
+        corr_, p_value = spearmanr(mrna_data[:,gene_i], latent_repr[:,latent_dim_i])
+        
+        correlations.append(corr_)
+        p_values.append(p_value)
+        
+    correlations_all.append(correlations)
+    p_values_all.append(p_values)
+
+correlations_all = np.array(correlations_all)
+correlations_all_df = pd.DataFrame(correlations_all.T, columns = df.iloc[:,34:1034].columns) 
+# columns -> retrieve column names from the original data frame
+p_values_all = np.array(p_values_all)
+p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].columns)
+
+
     
 #################### END
 print('***** DONE\n' + start_time + " - " +  str(datetime.datetime.now().time()))
 
+sys.exit(0)
 
 
 decoder.predict(encoder.predict(mrna_data_scaled, batch_size=batch_size)[2], batch_size=batch_size)
@@ -661,3 +871,9 @@ print('... written: ' + out_file_name)
 # TCGA-ZX-AA5X-01    0.912283
 # Length: 10459, dtype: float64
 # 
+# =============================================================================
+#         id_dt = pd.DataFrame({'i_gene':[i_gene], 
+#                        'gene':[gene_names[i_gene]],
+#                        'i_samp':[i_samp],
+#                        'sampID':[ samp_ids[i_samp]]})
+# =============================================================================

@@ -16,6 +16,8 @@ from keras import metrics, optimizers
 from keras.callbacks import Callback
 import keras
 
+import seaborn as sns
+
 #import pydot
 #import graphviz
 #from keras.utils import plot_model
@@ -132,14 +134,14 @@ original_dim = rnaseq_df.shape[1]
 latent_dim = 100
 
 batch_size = 50
-epochs = 3
+epochs = 3 # init value: 50
 learning_rate = 0.0005
 
 epsilon_std = 1.0
 beta = K.variable(0)
 kappa = 1
 
-
+outsuffix = str(latent_dim) + "LD_" + str(epochs) + "epochs_" + str(batch_size) + "bs"
 
 # ## Encoder
 
@@ -186,7 +188,8 @@ vae.summary()
 # Visualize the connections of the custom VAE model
 output_model_file = os.path.join(outfolder, 'onehidden_vae_architecture.png')
 plot_model(vae, to_file=output_model_file)
-
+plt.close()
+print('... written: ' + output_model_file)
 #SVG(model_to_dot(vae).create(prog='dot', format='svg'))
 
 
@@ -214,6 +217,8 @@ ax.set_xlabel('Epochs')
 ax.set_ylabel('VAE Loss')
 fig = ax.get_figure()
 fig.savefig(hist_plot_file)
+plt.close()
+print('... written: ' + hist_plot_file)
 
 # ## Compile and output trained models
 #
@@ -272,6 +277,7 @@ decoder.save(decoder_model_file)
 
 # +
 # What are the most and least activated nodes
+# encoded_rnaseq_df = predictions of the encoder
 sum_node_activity = encoded_rnaseq_df.sum(axis=0).sort_values(ascending=False)
 
 # Top 10 most active nodes
@@ -285,6 +291,10 @@ sum_node_activity.tail(10)
 sum_node_activity.hist()
 plt.xlabel('Activation Sum')
 plt.ylabel('Count');
+out_file_name = os.path.join(outfolder, 'node_activity_LF_hist' + outsuffix + '.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
 
 # What does an example distribution of two latent features look like?
 
@@ -293,6 +303,10 @@ plt.figure(figsize=(6, 6))
 plt.scatter(encoded_rnaseq_df.iloc[:, 1], encoded_rnaseq_df.iloc[:, 2])
 plt.xlabel('Latent Feature 1')
 plt.xlabel('Latent Feature 2');
+out_file_name = os.path.join(outfolder, 'node_activation_LD1_LD2' + outsuffix + '.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
 
 # ###  Observe reconstruction fidelity
 
@@ -312,7 +326,11 @@ gene_summary.sort_values(by='gene abs(sum)', ascending=False).head()
 # -
 
 # Mean of gene reconstruction vs. absolute reconstructed difference per sample
-#g = sns.jointplot('gene mean', 'gene abs(sum)', data=gene_summary, stat_func=None);
+g = sns.jointplot('gene mean', 'gene abs(sum)', data=gene_summary, stat_func=None);
+out_file_name = os.path.join(outfolder, 'reconstruct_fidelity_mean_abssum' + outsuffix + '.png')
+plt.savefig(out_file_name, dpi=300) 
+print('... written: ' + out_file_name)
+plt.close()
 
 
 #################### END

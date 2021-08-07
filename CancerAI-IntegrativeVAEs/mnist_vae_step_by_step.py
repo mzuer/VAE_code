@@ -55,7 +55,7 @@ outputs = decoder(encoder(inputs)[2])
 vae = keras.Model(inputs, outputs, name='vae_mlp')
 
 outfile = os.path.join(outfolder, "encoder_modelsummary.txt")
-with open('mnist_stepByStep_figures/', 'w') as f:
+with open(outfile, 'w') as f:
     encoder.summary(print_fn=lambda x: f.write(x + '\n'))
 print("... written " + outfile)
 
@@ -159,6 +159,38 @@ plt.show()
 out_file_name = os.path.join(outfolder, "2d_manifold_latentTrasversal.png")
 plt.savefig(out_file_name, dpi=300) 
 print('> saved ' + out_file_name)
+
+
+
+init_z = encoder_predict[0]
+i=0
+yi=grid_x[i]
+for i, yi in enumerate(grid_x):
+    z_sample = np.array([[yi, init_z[i][1]]]) # MZ: sampled latent vector
+    x_decoded = decoder.predict(z_sample)
+    #if i == 0:
+     #   filename = 'mnist_stepByStep_figures/i0_decoder_predict.sav'
+      #  pickle.dump(x_decoded, open(filename, 'wb'))
+    # pixel values were flatten for the training
+    # x_decoded is (1,784)
+    # digit is (28,28), digit_size being 28
+    digit = x_decoded[0].reshape(digit_size, digit_size)
+#    figure[i * digit_size: (i + 1) * digit_size,
+#           j * digit_size: (j + 1) * digit_size] = digit
+    
+    figure[i * digit_size: (i + 1) * digit_size,
+           0: ( 1) * digit_size] = digit
+           #j * digit_size: (j + 1) * digit_size] = digit
+    
+
+plt.figure(figsize=(10, 10))
+plt.imshow(figure)
+plt.show()
+
+out_file_name = os.path.join(outfolder, "1d_manifold_latentTrasversal.png")
+plt.savefig(out_file_name, dpi=300) 
+print('> saved ' + out_file_name)
+
         
 ### the encoder can also be defined afterwards:
 # encoder is the inference network

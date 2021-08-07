@@ -62,4 +62,9 @@ emb_train_file <- file.path(os.path.join(modelRunFolder,'emb_train'+outsuffix+'.
 emb_train  = pickle.load(file)
 
 
+#### take gene set from kegg pathway
+# do they have high correlation with one of the LD
+# if so, maybe interested to look at the other genes that have high correlation within this LD
 
+
+#### gene enrichment analysis

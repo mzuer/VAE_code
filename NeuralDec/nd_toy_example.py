@@ -69,7 +69,7 @@ n_covariates = 1
 hidden_dim = 32 # init value: 32
 latent_dim = 1 # init value: 1
 
-n_iter_integrals = 25000 # init value 25000 
+n_iter_integrals = 200 # init value 25000 
 logging_freq_integrals = 100 # init value 100
 grid_nsteps = 15 # init value 15
 
