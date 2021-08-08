@@ -473,6 +473,7 @@ print('... written: ' + out_file_name)
 plt.close()
 
 
+
 # boxplot variance explained
 #f_all_var = torch.cat([f_z_var, f_c_var, f_int_var], dim=0) return f_all_var.t()
 expvar_dt = pd.DataFrame(decoder.fraction_of_variance_explained(z=mu_z, c=c).numpy(),
@@ -484,10 +485,13 @@ sns.violinplot(data=expvar_dt, color="0.8")
 sns.stripplot(data=expvar_dt, jitter=True, zorder=1)
 plt.title("Fraction of variance explained")
 plt.ylabel("% variance explained")
-out_file_name = os.path.join(outfolder, 'sparsity_mask_for_'+sm_col+'_LD'+str(i_ld+1) + outsuffix + '.png')
+out_file_name = os.path.join(outfolder, 'fraction_of_variation_explained_dist' + outsuffix + '.png')
 plt.savefig(out_file_name, dpi=300) 
 print('... written: ' + out_file_name)
 plt.close()
+
+sys.exit(0)
+
 
 # for the top-ranking of variance explained, decompose the curve
 tmp_dt = expvar_dt.copy()
@@ -632,7 +636,7 @@ for rd_i, i_gene_idx in enumerate(rd_idxs):
     plt.scatter(x=mu_z, y=Y_pred[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
     plt.ylim([yaxmin, yaxmax])
     plt.xlabel("z")
-    plt.title("ND " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    plt.title("ND " + i_gene_name + " (var "+var_type+" random" + str(i_top+1)+')')
     out_file_name = os.path.join(outfolder, 'mapping_z_to_ND_pred' + outsuffix_2 + '.png')
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)
@@ -641,7 +645,7 @@ for rd_i, i_gene_idx in enumerate(rd_idxs):
     plt.scatter(x=mu_z, y=Y_pred_z[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
     plt.ylim([yaxmin, yaxmax])
     plt.xlabel("z")
-    plt.title("f(z) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    plt.title("f(z) " + i_gene_name + " (var "+var_type+" random" + str(i_top+1)+')')
     out_file_name = os.path.join(outfolder, 'mapping_z_to_fz_predz' + outsuffix_2 + '.png')         
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)
@@ -650,7 +654,7 @@ for rd_i, i_gene_idx in enumerate(rd_idxs):
     plt.scatter(x=mu_z, y=Y_pred_c[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
     plt.ylim([yaxmin, yaxmax])
     plt.xlabel("z")
-    plt.title("f(c) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    plt.title("f(c) " + i_gene_name + " (var "+var_type+" random" + str(i_top+1)+')')
     out_file_name = os.path.join(outfolder, 'mapping_z_to_fc_predc' + outsuffix_2 + '.png')         
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)
@@ -659,7 +663,7 @@ for rd_i, i_gene_idx in enumerate(rd_idxs):
     plt.scatter(x=mu_z, y=Y_pred_cz[:, i_gene_idx], c=np.array(c_data_bin).reshape(-1))
     plt.ylim([yaxmin, yaxmax])
     plt.xlabel("z")
-    plt.title("f(cz) " + i_gene_name + " (var "+var_type+" top" + str(i_top+1)+')')
+    plt.title("f(cz) " + i_gene_name + " (var "+var_type+" random" + str(i_top+1)+')')
     out_file_name = os.path.join(outfolder, 'mapping_z_to_fcz_predcz' + outsuffix_2 + '.png')         
     plt.savefig(out_file_name, dpi=300) 
     print('... written: ' + out_file_name)

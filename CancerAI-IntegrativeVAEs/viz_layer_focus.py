@@ -205,9 +205,9 @@ for i_ld in lds_to_traverse:
         ###plt.imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
         im=axs[i_z+1].imshow(all_traversals[str(i_ld)][str(iz)], aspect='auto')
     fig.colorbar(im)
-    plt.show()
     out_file_name = os.path.join(outfolder, 'LD'+str(i_ld+1) + "_cmp_predicted_latentTrav_heatmaps.png")
     plt.savefig(out_file_name, dpi=300) 
+    plt.show()
     plt.close()
     print('... written: ' + out_file_name)
 
@@ -235,6 +235,7 @@ for i_ld in lds_to_traverse:
 
     fig.colorbar(im)
     plt.show()
+    plt.draw()
     out_file_name = os.path.join(outfolder, 'LD'+str(i_ld+1) + "_cmp_predicted_latentTrav_diffInit_heatmaps.png")
     plt.savefig(out_file_name, dpi=300) 
     plt.close()
@@ -290,6 +291,7 @@ for i_ld in lds_to_traverse:
             # correlation of the predicted expression with the grid value
             corr, p_val = spearmanr(i_samp_i_gene_ldtravers, z_grid)
             sns.scatterplot(x=z_grid, y =i_samp_i_gene_ldtravers)
+            plt.close()
             lt_dt = pd.DataFrame(i_samp_i_gene_ldtravers).T
             lt_dt.columns = grid_cols
             id_dt = pd.DataFrame([i_gene, gene_names[i_gene],gene_lab,i_samp,samp_ids[i_samp],i_ld, corr, p_val]).T
@@ -378,7 +380,7 @@ cmp_dt = gene_mean_corr_trav.merge(corr_all_m, 'inner', on=['i_gene', 'i_LD'])
 sns.scatterplot(x=cmp_dt['corr'], y =cmp_dt['value_grid_SCC_coeff'])
 x=plt.ylabel("Mean grid SCC coeff.", size=12)
 x=plt.xlabel("Mean corr expr. and LD values")
-x=plt.title("(# samp="+str(nsamp_trav)+"-# genes=" + str(len(gene_names)) + "-# LDs="+str(len(lds_to_traverse)))
+x=plt.title("(# samp="+str(nsamp_trav)+"-# genes=" + str(len(gene_names)) + "-# LDs="+str(len(lds_to_traverse))+")")
         
 out_file_name = os.path.join(outfolder, 'corr_SCC_LD_latentTrav_all.png')
 plt.savefig(out_file_name, dpi=300) 
