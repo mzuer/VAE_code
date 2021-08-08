@@ -66,6 +66,8 @@ class Decoder(nn.Module):
             self.noise_sd = torch.nn.Parameter(-1.0 * torch.ones(1, output_dim))
 
         self.intercept = torch.nn.Parameter(torch.zeros(1, output_dim))
+        
+        # Lambda -> in the formula of the augmented Lagrangian
 
         self.Lambda_z = Variable(lambda0*torch.ones(1, output_dim, device=device), requires_grad=True)
 
@@ -156,6 +158,8 @@ class Decoder(nn.Module):
     def set_temperature(self, x):
         self.temperature = x * torch.ones(1, device=self.device)
 
+    # used in this script for calculating the loss
+    # do int_cz_dc and int_cz_dz
     def calculate_integrals(self):
 
         # has shape [1, output_dim]
@@ -177,6 +181,10 @@ class Decoder(nn.Module):
 
         return int_z, int_c, int_cz_dc, int_cz_dz
 
+    # used in CVAE.py optimize() for
+    # 1) get shapes for integrals
+    # 2) logging for integral constraints
+    # in _numpy cz_dc and cz_dz are concatenated
     def calculate_integrals_numpy(self):
 
         with torch.no_grad():

@@ -338,7 +338,7 @@ print(str(datetime.datetime.now().time()))
 
 lds_to_traverse=lds_to_traverse
 all_samp_dt = pd.DataFrame(columns = my_cols)
-nsamp_trav = n_samp
+nsamp_trav = 50
 for i_ld in lds_to_traverse:
     for i_gene in range(len(gene_names)):
         gene_lab = gene_names[i_gene]
