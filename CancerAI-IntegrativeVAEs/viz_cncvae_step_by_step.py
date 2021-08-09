@@ -108,6 +108,12 @@ plot_3plots(latent_repr_umap, df, type_='UMAP')
 outfile = os.path.join(outfolder, "latent_repr_umap")
 plot_3plots(data_to_plot=latent_repr_umap, data_with_labels=df, type_='UMAP', file_name=outfile)
 
+### save the true umap
+outfile = os.path.join(outfolder, "umap_coord_rawLDs" + outsuffix + ".csv")
+np.savetxt(outfile, latent_repr_umap, delimiter = ',')
+print("... written: " + outfile )
+
+
 # PLOT TSNE
 from sklearn.manifold import TSNE
 latent_repr_tsne = TSNE(n_components=2, perplexity=30 ).fit_transform(latent_repr)
@@ -147,6 +153,7 @@ correlations_all_df = pd.DataFrame(correlations_all.T, columns = df.iloc[:,34:10
 # columns -> retrieve column names from the original data frame
 p_values_all = np.array(p_values_all)
 p_values_all_df  = pd.DataFrame(p_values_all.T, columns = df.iloc[:,34:1034].columns)
+
 
 # scatterplot highest/lowest gene correlation with LD
 # retrieve the highest correlation value

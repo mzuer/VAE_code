@@ -234,10 +234,10 @@ for i_ld in lds_to_traverse:
         im=axs[i_z+1].imshow(mat_diff, aspect='auto', cmap="RdBu")
 
     fig.colorbar(im)
-    plt.show()
     plt.draw()
     out_file_name = os.path.join(outfolder, 'LD'+str(i_ld+1) + "_cmp_predicted_latentTrav_diffInit_heatmaps.png")
     plt.savefig(out_file_name, dpi=300) 
+    plt.show()
     plt.close()
     print('... written: ' + out_file_name)
 

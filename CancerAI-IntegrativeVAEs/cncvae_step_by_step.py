@@ -293,6 +293,12 @@ filename = os.path.join(outfolder, 'emb_train'+ outsuffix +'.sav')
 pickle.dump(emb_train, open(filename, 'wb'))
 print("... written: " + filename )
 
+#np.savetxt(r"C:\Users\d07321ow\Google Drive\SAFE_AI\CCE_DART\code\IntegrativeVAEs\code\results\custom_arch\mRNA_ls64_hs256_mmd_beta1_scaled.csv", emb_train, delimiter = ',')
+outfile = os.path.join(outfolder, "mRNA_ls64_hs256_mmd_beta1_scaled_embtrain" + outsuffix + ".csv")
+np.savetxt(outfile, emb_train, delimiter = ',')
+print("... written: " + outfile )
+
+
 #################### plot the training performance
 loss_train = history.history['loss']
 loss_val = history.history['val_loss']
@@ -486,7 +492,10 @@ for i in range(ndim):
     new_umap = mapper.transform(new_outputs)
     data_to_plot = new_umap
 
- 
+    outfile = os.path.join(outfolder, "umap_coord_LD" + str(i)  + "_shutdown" + outsuffix + ".csv")
+    np.savetxt(outfile, data_to_plot, delimiter = ',')
+    print("... written: " + outfile )
+
     g = sns.scatterplot(data_to_plot[:,0], data_to_plot[:,1],
                         hue = list(data_with_labels['ER_Expr']), 
                         ax=axs[i_row, i_col],linewidth=0, s=15, alpha=0.7, 
