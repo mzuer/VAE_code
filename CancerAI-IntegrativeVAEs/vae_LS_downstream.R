@@ -49,7 +49,7 @@ stopifnot(dim(mrna_data_scaled) == dim(mrna_data))
 foo <- apply(mrna_data_scaled, 1, function(x) stopifnot(range(x) == c(0,1)))
 
 emb_train <- data.frame(predict_on_batch(encoder, mrna_data_scaled)[[1]])
-
+emb_logsigma <- data.frame(predict_on_batch(encoder, mrna_data_scaled)[[2]])
 
 # latent dimension data
 latent_dim_file <- file.path(modelRunFolder, paste0("mRNA_ls64_hs256_mmd_beta1_scaled_embtrain", outsuffix, ".csv"))
@@ -92,35 +92,110 @@ stopifnot(grepl("^GE_", corr_genes))
 corr_genes <- gsub("^GE_", "", corr_genes)
 
 
-webgestalt_df <- WebGestaltR::WebGestaltR(
+################# only 1000 other genes, use full genome as reference
+outFolder <- file.path("VAES_LS_DOWNSTREAM")
+dir.create(outFolder, recursive=T)
+library(httr)
+organism <- "hsapiens"
+referenceSet <- "genome_protein-coding"
+response <- GET("http://www.webgestalt.org/api/reference",
+                query=list(organism=organism, referenceSet=referenceSet))
+if (response$status_code == 200) {
+  fileContent <- content(response)
+  ref_outfile <- file.path(outFolder, paste0(organism, "_", referenceSet, "_reference.txt"))
+  write(fileContent, outfile)
+  genes <- unlist(strsplit(fileContent, "\n", fixed=TRUE))
+  print(genes[1:3])
+}
+
+
+
+enrichWGR_df <- WebGestaltR::WebGestaltR(
   enrichMethod = "ORA",
   enrichDatabase="pathway_KEGG",
   organism = "hsapiens",
   interestGene = corr_genes,
   interestGeneType = "genesymbol",
   minNum = 4,
-  sigMethod = "fdr", # default
+  sigMethod ="top",  #fdr", # default
   fdrMethod = "BH",# default
-  isOutput = TRUE,
+  isOutput = F,
  # outputDirectory = out_dir,
-  #referenceGeneFile = background_file,
+ referenceGeneFile = ref_outfile,
+  referenceGeneType = "entrezgene_protein-coding"
+)
+
+
+
+enrichWGR_df2 <- WebGestaltR::WebGestaltR(
+  enrichMethod = "ORA",
+  enrichDatabase="pathway_KEGG",
+  organism = "hsapiens",
+  interestGene = corr_genes,
+  interestGeneType = "genesymbol",
+  minNum = 4,
+  sigMethod ="top",  #fdr", # default
+  fdrMethod = "BH",# default
+  isOutput = F,
+  # outputDirectory = out_dir,
+  referenceGene = gsub("^GE_", "", names(all_gene_corrs_abs)),
   referenceGeneType = "genesymbol"
 )
 
+ref_genes <- names(all_gene_corrs_abs)[all_gene_corrs_abs < highcorr_thresh]
+stopifnot(grepl("^GE_", ref_genes))
+ref_genes <- gsub("^GE_", "", ref_genes)
+
 enrichResult <- WebGestaltR(enrichMethod="ORA", organism="hsapiens",
                             enrichDatabase="pathway_KEGG", interestGene=corr_genes,
-                            interestGeneType="genesymbol", referenceGeneFile=refFile,
+                            interestGeneType="genesymbol", referenceGene=ref_genes,
                             referenceGeneType="genesymbol", isOutput=F,
                             outputDirectory=getwd(), projectName=NULL)
 
 
 
+
+webgestalt_df <- WebGestaltR::WebGestaltR(
+  enrichMethod = "ORA",
+  enrichDatabase="pathway_KEGG",
+  organism = "hsapiens",
+  interestGeneFile = geneFile,
+  interestGeneType = "genesymbol",
+  minNum = 4,
+  sigMethod = "fdr", # default
+  fdrMethod = "BH",# default
+  isOutput = TRUE,
+  # outputDirectory = out_dir,
+  referenceGeneFile = outfile,
+  referenceGeneType = "entrezgene_protein-coding"
+)
+
+
 ############## cmp the umap
+
+# run umap on the raw data
+# in python mapper = umap.UMAP(n_neighbors=15, n_components=2).fit(mrna_data)
+library(umap)
+
+raw_umap <- umap(mrna_data, n_neighbors=15, n_components=2)
+plot(raw_umap$layout[,1],raw_umap$layout[,2])
+
+scaled_umap <- umap(mrna_data_scaled, n_neighbors=15, n_components=2)
+plot(scaled_umap$layout[,1],scaled_umap$layout[,2])
 
 # first umap on raw data
 
-VIZ_CNCVAE_STEP_BY_STEP/umap_coord_rawLDs_150epochs_128bs.csv
+py_umap_raw <- read.delim("VIZ_CNCVAE_STEP_BY_STEP/umap_coord_rawLDs_150epochs_128bs.csv", sep=",", header=F)
+plot(py_umap_raw[,1], py_umap_raw[,2])
 
+
+################################# ################################# 
+cat("***** DONE\n")
+cat(paste0(Sys.time(), "\n"))
+
+
+################################# 
+################################# 
 ################################# TRASH
 
 
@@ -134,6 +209,7 @@ for(i in all_layer_names){
 ### the decoder layers are nested within decoder !!!
 get_layer(vae, "decoder")$layers
 all_decoder_layer_names <- unlist(lapply( get_layer(vae, "decoder")$layers, function(x) unlist(x)$name))
+
 
 
 
