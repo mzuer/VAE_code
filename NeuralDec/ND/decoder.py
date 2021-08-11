@@ -193,6 +193,7 @@ class Decoder(nn.Module):
             int_z = self.forward_z(self.grid_z).mean(dim=0).reshape(1, self.output_dim).cpu().numpy()
 
             # has shape [1, output_dim]
+            # ?? why here it is mapping ???
             int_c = self.mapping_c(self.grid_c).mean(dim=0).reshape(1, self.output_dim).cpu().numpy()
 
             m1 = self.n_grid_z
