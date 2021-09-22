@@ -1,5 +1,5 @@
 
-# python nd_metabric_mrna.py
+# python nd_ov_tcga_mrna.py
 
 import sys,os
 import torch
@@ -20,9 +20,10 @@ random.seed(123)
 
 import matplotlib.pyplot as plt
 
-inputfile= os.path.join('/home','marie','Documents','FREITAS_LAB',
-                            'VAE_tutos','CancerAI-IntegrativeVAEs',
-                            'data','MBdata_33CLINwMiss_1KfGE_1KfCNA.csv')
+inputfile= os.path.join('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/ovarian_data/log_filtNormCount_mostVar_dt.txt')
+
+annotfile= os.path.join('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/ovarian_data/tcga_annot_dt.txt')
+
 
 wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','NeuralDec')
 os.chdir(wd)
@@ -31,7 +32,7 @@ os.chdir(wd)
 module_path = os.path.join(wd, 'ND')
 
 
-outfolder = "ND_METABRIC_MRNA"
+outfolder = "ND_OV_TCGA_MRNA"
 os.makedirs(outfolder, exist_ok=True)
 
 
@@ -55,37 +56,52 @@ from torch.utils.data import TensorDataset, DataLoader
 # load the data
 ###### load data
 
-covarLab = "ER_Status"
+# print("loading annotation")
+# annot_dt = pd.read_csv(annotfile)
 
 # training data
+print("... loading mRNA data")
 df=pd.read_csv(inputfile)
 
-n_samp = df.shape[0]
-n_genes = sum(['GE_' in x for x in df.columns])
+gene_names = df.geneID_symb.values
+gene_ensemblIDs = df.geneID_ensembl.values
 
-mrna_data = df.iloc[:,34:1034].copy().values 
-gene_names = [re.sub('GE_', '', x) for x in df.columns[34:1034]]
+del df['geneID_ensembl']
+del df['geneID_symb']
+
+# to have the samp in rows
+df = df.T
+df.columns = gene_names
+n_samp = df.shape[0]
+n_genes = df.shape[1]
+
+assert  n_genes == len(gene_names)
+
+mrna_data = df.copy().values 
+
+covarLab="normtum"
+
 # the values after are CNA, the values before are clinical data
 # copy() for deep copy
 # values to convert to multidim array
-mrna_data2= df.filter(regex='GE_').copy().values
-assert mrna_data2.shape == mrna_data.shape
 
+print("... data scaling")
 mrna_data_scaled = (mrna_data - mrna_data.min(axis=1).reshape(-1,1))/ \
 (mrna_data.max(axis=1)-mrna_data.min(axis=1)).reshape(-1,1)
 
 # will use the 'ER_Status' as condition
-tokeep = np.where( (df[covarLab].values == "pos") | (df[covarLab].values == "neg"))
-mrna_data_filt = mrna_data_scaled[list(tokeep[0]),:]
 
-sample_labels = df[covarLab].values[tokeep]
+sample_labels = np.array([x[0:4] for x in df.index])
+assert len(sample_labels) == n_samp
 
-assert mrna_data_filt.shape[0] + df[df[covarLab] == "?"].shape[0] == mrna_data_scaled.shape[0]
+assert all([i in ['TCGA', 'GTEX'] for i in sample_labels])
+
+mrna_data_filt=mrna_data_scaled
 
 input_data = mrna_data_filt
-c_data = df[covarLab][list(tokeep[0])]
+c_data = sample_labels
 assert len(c_data) == mrna_data_filt.shape[0]
-c_data_bin = np.vectorize(np.int)(c_data == "pos")
+c_data_bin = np.vectorize(np.int)(c_data == "TCGA")
 #c_data_bin = np.vectorize(np.float)(c_data == "pos")
 assert np.all((c_data_bin == 1) | (c_data_bin==0))
 
@@ -105,6 +121,8 @@ assert len(sample_labels) == nsamp
 # type(Y.numpy()[0,0])
 # Out[162]: numpy.float32
 # 
+
+print("... setting up the model")
 
 #input_data=np.vectorize(float)(input_data)
 c = torch.from_numpy(c_data_bin).reshape(-1,1).float() ### ?? requires float input
@@ -175,6 +193,8 @@ decoder = Decoder(data_dim,
                   lambda0=1e2, penalty_type="MDMM",
                   device=device)
 
+print("... build the model")
+
 # Combine the encoder + decoder and fit the decomposable CVAE
 #model = CVAE(encoder, decoder, lr=5e-3, device=device)
 model = CVAE(encoder, decoder, lr=1e-3, device=device)
@@ -184,6 +204,7 @@ model = CVAE(encoder, decoder, lr=1e-3, device=device)
 ###integrals = np.hstack([int_z_values, int_c_values, int_cz_values]).reshape(n_iter // logging_freq_int, -1).T
 ## logging_freq_int default = 100
 
+print("... run optimization")
 #n_iter/logging_freq_int => gives the # of columns
 loss, integrals = model.optimize(data_loader,
                                  logging_freq_int=logging_freq_integrals ,
@@ -279,7 +300,7 @@ with torch.no_grad():
     #Out[7]: torch.Size([5, 3])
     # w_z, w_c, w_cz for the 5 features 
 sparsity.shape 
-# 1000,3
+#,3
 # => how if multiple c ??? 
 assert sparsity.shape[0] == nfeatures
 assert sparsity.shape[1] == latent_dim + n_covariates + 1 # ???????

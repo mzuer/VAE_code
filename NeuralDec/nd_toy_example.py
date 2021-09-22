@@ -153,11 +153,11 @@ model = CVAE(encoder, decoder, lr=5e-3, device=device)
 
 #n_iter/logging_freq_int => gives the # of columns
 loss, integrals = model.optimize(data_loader,
-                                 logging_freq_int=logging_freq_integrals ,
-                                 n_iter=n_iter_integrals, 
+                                 logging_freq_int=100 ,
+                                 n_iter=500, 
                                  augmented_lagrangian_lr=0.1)
 
-
+#sys.exit(0)
 loss.shape
 # 1250,
 integrals.shape
