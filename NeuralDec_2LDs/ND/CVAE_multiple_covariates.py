@@ -7,9 +7,9 @@ from math import ceil
 
 from .helpers import KL_standard_normal
 
-class CVAE(nn.Module):
+class CVAE_multiple_covariates(nn.Module):
     """
-    CVAE with Neural Decomposition as part of the decoder
+    CVAE with Neural Decomposition (for multiple covariates) as part of the decoder
     """
 
     def __init__(self, encoder, decoder, lr, device="cpu"):
@@ -29,28 +29,26 @@ class CVAE(nn.Module):
         self.to(device)
 
 
-    def forward(self, data_subset, beta=1.0, device="cpu"):
+    def forward(self, data_subset, beta=1.0, batch_scale=1.0, device="cpu"):
         # we assume data_subset containts two elements
         Y, c = data_subset
         Y, c = Y.to(device), c.to(device)
 
         # encode
         mu_z, sigma_z = self.encoder(Y, c)
-        print("mu_z-forward.shape")
-        print(mu_z.shape)
         eps = torch.randn_like(mu_z)
         z = mu_z + sigma_z * eps
 
         # decode
         y_pred = self.decoder.forward(z, c)
-        decoder_loss, penalty, int1, int2, int3, int4 = self.decoder.loss(y_pred, Y)
+        neg_loglik, penalty, int1, int2, int3, int4 = self.decoder.loss(y_pred, Y)
 
         # loss function
         VAE_KL_loss = KL_standard_normal(mu_z, sigma_z)
 
         # Note that when this loss (neg ELBO) is calculated on a subset (minibatch),
         # we should scale it by data_size/minibatch_size, but it would apply to all terms
-        total_loss = decoder_loss + beta * VAE_KL_loss
+        total_loss = batch_scale * (neg_loglik + beta * VAE_KL_loss) + penalty
 
         return total_loss, int1, int2, int3, int4
 
@@ -68,9 +66,7 @@ class CVAE(nn.Module):
         return self.decoder.loglik(Y_pred, Y)
 
 
-    def optimize(self, data_loader, augmented_lagrangian_lr, n_iter=50000, 
-                 logging_freq=20, logging_freq_int=100, temperature_start=4.0,
-                 temperature_end=0.2, lambda_start=None, lambda_end=None, verbose=True):
+    def optimize(self, data_loader, augmented_lagrangian_lr, n_iter=50000, logging_freq=20, logging_freq_int=100, batch_scale=1.0, account_for_noise=True, temperature_start=1.0, temperature_end=0.2, lambda_start=1.0, lambda_end=1.0, verbose=True):
 
         # sample size
         N = len(data_loader.dataset)
@@ -83,12 +79,7 @@ class CVAE(nn.Module):
         loss_values = np.zeros(ceil(n_iter // logging_freq))
 
         if self.decoder.has_feature_level_sparsity:
-            temperature_grid = torch.linspace(temperature_start, temperature_end, steps=n_iter // 10, 
-                                              device=self.device)
-
-        if lambda_start is None:
-            lambda_start = self.decoder.lambda0
-            lambda_end = self.decoder.lambda0
+            temperature_grid = torch.linspace(temperature_start, temperature_end, steps=n_iter // 10, device=self.device)
         lambda_grid = torch.linspace(lambda_start, lambda_end, steps=n_iter // 10, device=self.device)
 
         # get shapes for integrals
@@ -107,7 +98,7 @@ class CVAE(nn.Module):
                 if iteration >= n_iter:
                     break
 
-                loss, int_z, int_c, int_cz_dc, int_cz_dz = self.forward(data_subset, beta=1.0, device=self.device)
+                loss, int_z, int_c, int_cz_dc, int_cz_dz = self.forward(data_subset, beta=1.0, batch_scale=batch_scale, device=self.device)
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -118,11 +109,12 @@ class CVAE(nn.Module):
                 self.decoder.lambda0 = lambda_grid[iteration // 10]
 
                 # update for BDMM
-                with torch.no_grad(): # Context-manager that disabled gradient calculation.
+                with torch.no_grad():
                     self.decoder.Lambda_z += augmented_lagrangian_lr * int_z
-                    self.decoder.Lambda_c += augmented_lagrangian_lr * int_c
-                    self.decoder.Lambda_cz_1 += augmented_lagrangian_lr * int_cz_dc
-                    self.decoder.Lambda_cz_2 += augmented_lagrangian_lr * int_cz_dz
+                    for j in range(self.decoder.n_covariates):
+                        self.decoder.Lambda_c[j] += augmented_lagrangian_lr * int_c[j]
+                        self.decoder.Lambda_cz_1[j] += augmented_lagrangian_lr * int_cz_dc[j]
+                        self.decoder.Lambda_cz_2[j] += augmented_lagrangian_lr * int_cz_dz[j]
 
                 # logging for the loss function
                 if iteration % logging_freq == 0:
@@ -147,25 +139,3 @@ class CVAE(nn.Module):
         integrals = np.hstack([int_z_values, int_c_values, int_cz_values]).reshape(n_iter // logging_freq_int, -1).T
 
         return loss_values, integrals
-
-class CVAE_with_fixed_z(CVAE):
-    """
-    Same as the above CVAE class, but assuming a fixed latent variable z, thus effectively only training the decoder.
-    We assume z is given by the data_loader, i.e. we assume it returns tuples (Y, c, z)
-    """
-
-    def __init__(self, decoder, lr):
-        super().__init__(encoder=None, decoder=decoder, lr=lr)
-
-    def forward(self, data_subset, beta=1.0):
-        # we assume data_subset containts three elements
-        Y, c, z = data_subset
-
-        # decoding step
-        y_pred = self.decoder.forward(z, c)
-        decoder_loss, penalty, int1, int2, int3, int4 = self.decoder.loss(y_pred, Y)
-
-        # no KL(q(z) | p(z)) term because z fixed
-        total_loss = decoder_loss
-
-        return total_loss, int1, int2, int3, int4

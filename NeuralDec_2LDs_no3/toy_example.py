@@ -117,7 +117,7 @@ grid_cz1 = torch.cat(expand_grid(grid_z1, grid_c), dim=1).to(device)
 grid_cz2 = torch.cat(expand_grid(grid_z2, grid_c), dim=1).to(device)
 grid_z1z2 = torch.cat(expand_grid(grid_z2, grid_z1), dim=1).to(device)
 ## ?????? but how to extend the grid in 3d ???
-^
+
 grid_cz1z2 = torch.cat(expand_grid(grid_z2, grid_z1, grid_c), dim=1).to(device) #### ???! not sure it will work with 3 terms
 
 decoder_z1 = nn.Sequential(

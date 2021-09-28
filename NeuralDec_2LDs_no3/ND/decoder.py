@@ -111,11 +111,7 @@ class Decoder(nn.Module):
 
 
     def forward_z(self, z):
-        print("decoder -forward - z.shape")
-        print(z.shape)
         value = self.mapping_z(z) # mapping = a NN
-        print("decoder -forward - value.shape")
-        print(value.shape)
         if self.has_feature_level_sparsity:
             w = rsample_RelaxedBernoulli(self.temperature, self.qlogits_z)
             return w * value
@@ -197,7 +193,6 @@ class Decoder(nn.Module):
             int_z = self.forward_z(self.grid_z).mean(dim=0).reshape(1, self.output_dim).cpu().numpy()
 
             # has shape [1, output_dim]
-            # ?? why here it is mapping ???
             int_c = self.mapping_c(self.grid_c).mean(dim=0).reshape(1, self.output_dim).cpu().numpy()
 
             m1 = self.n_grid_z
@@ -220,17 +215,11 @@ class Decoder(nn.Module):
 
 
     def calculate_penalty(self):
+        # return int_z, int_c, int_cz_dc, int_cz_dz
         int_z, int_c, int_cz_1, int_cz_2 = self.calculate_integrals()
 
         # penalty with fixed lambda0
         if self.penalty_type in ["fixed", "MDMM"]:
-            
-            print("decoder  calc_pen - int_z1.abs().mean()")
-            print(int_z.abs().mean())
-            print("decoder  calc_pen - lambda0")
-            print(self.lambda0)
-
-            
             penalty0 = self.lambda0 * (int_z.abs().mean() + int_c.abs().mean() + \
                                        int_cz_1.abs().mean() + int_cz_2.abs().mean())
 

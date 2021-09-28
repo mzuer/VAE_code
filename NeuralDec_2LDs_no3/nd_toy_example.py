@@ -14,7 +14,7 @@ import datetime
 start_time = str(datetime.datetime.now().time())
 
 
-wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','NeuralDec_2LDs')
+wd = os.path.join('/home','marie','Documents','FREITAS_LAB','VAE_tutos','NeuralDec_2LDs_no3')
 os.chdir(wd)
 
 outfolder = "ND_TOY_EXAMPLE"
@@ -99,7 +99,7 @@ data_loader = DataLoader(dataset, shuffle=True, batch_size=64)
 encoder_mapping = nn.Sequential(
     nn.Linear(data_dim + n_covariates, hidden_dim),
     nn.ReLU(),
-    nn.Linear(hidden_dim, n_lds*2) ## is it n_lds *2 ???
+    nn.Linear(hidden_dim, n_lds*2) ## is it n_lds *2 ?????????????????? why shape 64,2 ???`
 )
 # n_lds * 2 => each has one z_mu and one z_sigma
 
@@ -110,17 +110,17 @@ encoder = cEncoder(z_dim=n_lds, mapping=encoder_mapping)
 
 # grid needed for quadrature
 
+#### => grid for z => should be the range of z [normally -2;2 or -3;3 if the prior is gaussian]
+### => !! grid for c => taken directly from the input, so should be in the range of the input
+
 grid_z1 = torch.linspace(-2.0, 2.0, steps=15).reshape(-1, 1).to(device)
 grid_z2 = torch.linspace(-2.0, 2.0, steps=15).reshape(-1, 1).to(device)  # [15,1]
 grid_c = torch.linspace(-2.0, 2.0, steps=15).reshape(-1, 1).to(device)
 grid_cz1 = torch.cat(expand_grid(grid_z1, grid_c), dim=1).to(device)
 grid_cz2 = torch.cat(expand_grid(grid_z2, grid_c), dim=1).to(device)
 grid_z1z2 = torch.cat(expand_grid(grid_z2, grid_z1), dim=1).to(device)
-## ?????? but how to extend the grid in 3d ???
-^
-grid_cz1z2 = torch.cat(expand_grid(grid_z2, grid_z1, grid_c), dim=1).to(device) #### ???! not sure it will work with 3 terms
 
-decoder_z1 = nn.Sequential(
+decoder_z1 = nn.Sequential(   #### z1 should be feed only with z1 ??!
     nn.Linear(1, hidden_dim),
     nn.Tanh(),
     nn.Linear(hidden_dim, data_dim)
@@ -153,19 +153,13 @@ decoder_cz2 = nn.Sequential(
     nn.Linear(hidden_dim, data_dim)
 )
 
-decoder_cz1z2 = nn.Sequential(
-    nn.Linear(3, hidden_dim),
-    nn.Tanh(),
-    nn.Linear(hidden_dim, data_dim)
-)
 
 decoder = Decoder(data_dim, 
                  grid_z1=grid_z1, grid_z2=grid_z2, grid_c=grid_c, 
                  grid_cz1=grid_cz1, grid_cz2=grid_cz2, grid_z1z2=grid_z1z2,
-                 grid_cz1z2=grid_cz1z2,
                  mapping_z1=decoder_z1,  mapping_z2=decoder_z2, mapping_c=decoder_c,
                  mapping_cz1=decoder_cz1, mapping_cz2=decoder_cz2, 
-                 mapping_z1z2=decoder_z1z2, mapping_cz1z2=decoder_cz1z2,
+                 mapping_z1z2=decoder_z1z2,
                   has_feature_level_sparsity=True, 
                   p1=0.1, p2=0.1, p3=0.1, p4=0.1,
                   p5=0.1, p6=0.1, p7=0.1, 
@@ -179,9 +173,16 @@ decoder = Decoder(data_dim,
 model = CVAE(encoder, decoder, lr=5e-3, device=device)
 
 loss, integrals = model.optimize(data_loader,
-                                 n_iter=25000, 
+                                 n_iter=500,    
+                                 logging_freq_int=100 ,  ##### should be multiple of n_iter !!!
                                  augmented_lagrangian_lr=0.1)
-sys.exit(0)
+#sys.exit(0)
+
+
+
+
+
+
 
 # + [markdown] id="m_4crls9Hou0" colab_type="text"
 # ### Diagnostics and interpretation of the model fit
@@ -201,6 +202,8 @@ def plot_integrals(integrals):
 
 plot_integrals(integrals)
 
+# 5*(15*3*2+3) = 465
+
 # + [markdown] id="Hk9C7wCHH7PJ" colab_type="text"
 # Now let's look at the inferred $z$ values, together with the mappings $z \mapsto \text{features}$
 
@@ -208,27 +211,32 @@ plot_integrals(integrals)
 with torch.no_grad():
     # encoding of the entire observed data set
     mu_z, sigma_z = encoder(Y.to(device), c.to(device))
+    mu_z1 = mu_z[:,0].reshape(-1,1)
+    mu_z2 = mu_z[:,1].reshape(-1,1)
+    sigma_z1 = sigma_z[:,0].reshape(-1,1)
+    sigma_z2 = sigma_z[:,1].reshape(-1,1)
     # predictions from the decoder
-    Y_pred = decoder(mu_z, c.to(device))
+    Y_pred = decoder(mu_z1.to(device), mu_z2.to(device), c.to(device))
 
     # output to CPU
     mu_z, sigma_z = mu_z.cpu(), sigma_z.cpu()
+    mu_z1, sigma_z1 = mu_z1.cpu(), sigma_z1.cpu()
+    mu_z2, sigma_z2 = mu_z2.cpu(), sigma_z2.cpu()
     Y_pred = Y_pred.cpu()
 
 # + [markdown] id="vunBdUouYzb3" colab_type="text"
 # ### Correlation between the ground truth $z$ and the inferred $z$ values
 
 # + id="ZWGs64lIlKlr" colab_type="code" colab={"base_uri": "https://localhost:8080/", "height": 282} outputId="20741db6-90f4-42d6-f22a-2fb42e165317"
-plt.scatter(z, mu_z)
+#¨plt.scatter(z, mu_z)
 
 # + [markdown] id="IJP-xxIIY8gk" colab_type="text"
 # ### Visualising mappings from z to feature space
 
 # + id="hp9sFzohTXKN" colab_type="code" colab={"base_uri": "https://localhost:8080/", "height": 282} outputId="1c2bc88d-f187-49af-8f4b-29572a5f5c8e"
-plt.scatter(mu_z, Y_pred[:, 0], c=c.reshape(-1))
+plt.scatter(mu_z2, Y_pred[:, 0], c=c.reshape(-1))
+plt.scatter(mu_z1, Y_pred[:, 0], c=c.reshape(-1))
 
-# + id="aszLDuDTTgf2" colab_type="code" colab={"base_uri": "https://localhost:8080/", "height": 282} outputId="586401fd-8781-4995-ffd1-2eb9717d2e42"
-plt.scatter(mu_z, Y_pred[:, 1], c=c.reshape(-1))
 
 # + [markdown] id="Gp0hgR8zYvZi" colab_type="text"
 # ### Inferred sparsity masks
@@ -240,5 +248,9 @@ with torch.no_grad():
 plt.imshow(sparsity)
 plt.colorbar()
 
-# + id="J3moKj3XqOzf" colab_type="code" colab={}
+sys.exit(0)
 
+#### output of ANOVA is by definition zero-means
+# if want to plot data on same scale -> need to add the intercept !!!
+# not color-coded fz -> because it is not dependent on the condition
+# also for fc -> only dependent of 1 input so does not really make sense to show the color

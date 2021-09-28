@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch
 import numpy as np
 
 from math import ceil
@@ -36,8 +35,6 @@ class CVAE(nn.Module):
 
         # encode
         mu_z, sigma_z = self.encoder(Y, c)
-        print("mu_z-forward.shape")
-        print(mu_z.shape)
         eps = torch.randn_like(mu_z)
         z = mu_z + sigma_z * eps
 
@@ -106,7 +103,12 @@ class CVAE(nn.Module):
 
                 if iteration >= n_iter:
                     break
-
+                import pickle, os
+                outfolder="ND_TOY_EXAMPLE"
+                outsuffix="_debug_optimize"
+                filename = os.path.join(outfolder, 'data_subset'+ outsuffix +'.sav')
+                pickle.dump(data_subset, open(filename, 'wb'))
+                print("... written: " + filename )
                 loss, int_z, int_c, int_cz_dc, int_cz_dz = self.forward(data_subset, beta=1.0, device=self.device)
 
                 self.optimizer.zero_grad()
@@ -119,10 +121,14 @@ class CVAE(nn.Module):
 
                 # update for BDMM
                 with torch.no_grad(): # Context-manager that disabled gradient calculation.
+                   
                     self.decoder.Lambda_z += augmented_lagrangian_lr * int_z
                     self.decoder.Lambda_c += augmented_lagrangian_lr * int_c
                     self.decoder.Lambda_cz_1 += augmented_lagrangian_lr * int_cz_dc
                     self.decoder.Lambda_cz_2 += augmented_lagrangian_lr * int_cz_dz
+
+ #Lambda_cz_1 = Variable(lambda0*torch.ones(self.n_grid_z,
+ #f.Lambda_cz_2 = Variable(lambda0*torch.ones(self.n_grid_c, 
 
                 # logging for the loss function
                 if iteration % logging_freq == 0:
@@ -163,6 +169,7 @@ class CVAE_with_fixed_z(CVAE):
 
         # decoding step
         y_pred = self.decoder.forward(z, c)
+        # return total_loss, penalty, int_z, int_c, int_cz_dc, int_cz_dz
         decoder_loss, penalty, int1, int2, int3, int4 = self.decoder.loss(y_pred, Y)
 
         # no KL(q(z) | p(z)) term because z fixed
