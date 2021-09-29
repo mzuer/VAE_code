@@ -85,6 +85,8 @@ write.table(log_filtNormCount, file = "log_filtNormCount_dt.txt", sep=",", col.n
 ########## out annotation
 
 keepcols <- c(
+  "labs_for_purity",
+  "cgc_sample_id",
 "cgc_case_clinical_stage",
 "gdc_cases.demographic.year_of_birth",
 "cgc_case_days_to_death",

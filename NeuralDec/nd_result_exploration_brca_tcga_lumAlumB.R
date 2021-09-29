@@ -1,11 +1,11 @@
 
-# Rscript nd_result_exploration_ov.R
+# Rscript nd_result_exploration_brca_tcga_lumAlumB.R
 
 require(ggplot2)
 require(ggsci)
 require(viridis)
 
-outFolder <- file.path("ND_RESULT_EXPLORATION_OV")
+outFolder <- file.path("ND_RESULT_EXPLORATION_BRCA_TCGA_LUMALUMB")
 dir.create(outFolder, recursive = TRUE)
 
 plotType <- "png"
@@ -14,21 +14,25 @@ myWidth <- 400
 myHeightGG <- 7
 myWidthGG <- 7
 
-indata_file <- file.path('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/ovarian_data/log_filtNormCount_mostVar_dt.txt')
-vae_latent_repr_file <- file.path("ND_OV_TCGA_GTEX_MRNA/mu_z_hd32_nLD1_cnormtum_25000_100_15_0-1_0-1.csv")
-corr_file <- file.path("ND_OV_TCGA_GTEX_MRNA/correlations_all_hd32_nLD1_cnormtum_25000_100_15_0-1_0-1.csv")
-corrpval_file <- file.path("ND_OV_TCGA_GTEX_MRNA/p_values_all_hd32_nLD1_cnormtum_25000_100_15_0-1_0-1.csv")
-annot_file <- file.path('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/ovarian_data/tcga_annot_dt.txt')
+indata_file <- file.path('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/brca_data/log_filtNormCount_mostVar_dt.txt')
+vae_latent_repr_file <- file.path("ND_BREAST_TCGA_LUMA_LUMB_MRNA//mu_z_hd32_nLD1_clumA-lumB_25000_100_15_0-1_0-1.csv")
+corr_file <- file.path("ND_BREAST_TCGA_LUMA_LUMB_MRNA/correlations_all_hd32_nLD1_clumA-lumB_25000_100_15_0-1_0-1.csv")
+corrpval_file <- file.path("ND_BREAST_TCGA_LUMA_LUMB_MRNA/p_values_all_hd32_nLD1_clumA-lumB_25000_100_15_0-1_0-1.csv")
+annot_file <- file.path('/home/marie/Documents/FREITAS_LAB/VAE_tutos/NeuralDec/brca_data/tcga_annot_dt.txt')
 
 source("../../ovarian_project/phenopath/phenopath_my_utils.R")
 
 annot_dt <- read.delim(annot_file, sep=",", header=T, stringsAsFactors = FALSE)
 tcga_annot_dt <- annot_dt
+stopifnot(!(duplicated(tcga_annot_dt$cgc_sample_id)))
+samp2pam <- setNames(tcga_annot_dt$PAM50, tcga_annot_dt$cgc_sample_id)
 # tcga_annot_dt <- get(load("../../ovarian_project/tcga_data//DOWNLOAD_TCGA_GTEX_OV_RECOUNT2/tcga_sampleAnnot.Rdata"))
 # # annot_dt <- read.delim(annot_file, header=T, stringsAsFactors = FALSE, sep=",")
 # unique(tcga_annot_dt$cgc_case_clinical_stage)
 # annot_dt <- tcga_annot_dt
 
+lumA_samps <- names(samp2pam)[samp2pam=="lumA"]
+lumB_samps <- names(samp2pam)[samp2pam=="lumB"]
 
 in_dt <- read.delim(indata_file, header=T, stringsAsFactors = FALSE, sep=",", check.names = FALSE)
 dim(in_dt)
@@ -40,24 +44,25 @@ stopifnot(!duplicated(in_dt$ensembl_id))
 exprT_dt <- t(expr_dt)
 nSamp <- ncol(expr_dt)
 
-nGTEX <- sum(grepl("^GTEX", colnames(expr_dt)))
-nTCGA <- sum(grepl("^TCGA", colnames(expr_dt)))
-stopifnot(nTCGA + nGTEX == ncol(expr_dt))
+stopifnot(colnames(expr_dt) %in% names(samp2pam))
+
+nLumA <- sum(colnames(expr_dt)%in%lumA_samps)
+nLumB <- sum(colnames(expr_dt)%in%lumB_samps)
+stopifnot(nLumA + nLumB == ncol(expr_dt))
 
 # rownames(annot_dt) <- annot_dt$Tumor.ID
 rownames(annot_dt) <- annot_dt$cgc_sample_id
-stopifnot(setequal(rownames(annot_dt), colnames(expr_dt)[grepl("TCGA", colnames(expr_dt))]))
+stopifnot(setequal(rownames(annot_dt), colnames(expr_dt)))
 annot_dt <- annot_dt[colnames(expr_dt),]
 # annot_dt$PAM50.subtype <- as.factor(annot_dt$PAM50.subtype)
 # col_lab <- "PAM50.subtype"
-
 
 vae_lr_dt <- read.delim(vae_latent_repr_file, header=F, stringsAsFactors = FALSE, sep=",")
 dim(vae_lr_dt)
 # 525x1
 rownames(vae_lr_dt) <- colnames(expr_dt)
 # 45x100
-ov_pseudotimes <- setNames(vae_lr_dt[,1], rownames(vae_lr_dt))
+brca_pseudotimes <- setNames(vae_lr_dt[,1], rownames(vae_lr_dt))
 
 corr_dt <- read.delim(corrpval_file, header=F, stringsAsFactors = FALSE, sep=",")
 dim(corr_dt)
@@ -73,59 +78,54 @@ rownames(pval_dt) <- in_dt$gene_symbol
 ############## PC dots with color-coded by pseudotime gradient ##############
 ################################### 
 
-myannot_dt <- annot_dt[,c("labs_for_purity", "cgc_case_clinical_stage")]
-myannot_dt <- unique(myannot_dt)
-# myannot_dt$labs_for_purity <- gsub("-", ".", myannot_dt$labs_for_purity)
-stopifnot(any(colnames(expr_dt) %in% myannot_dt$labs_for_purity))
-stopifnot(!duplicated(myannot_dt$labs_for_purity))
-labs2stage <- setNames(myannot_dt$cgc_case_clinical_stage, myannot_dt$labs_for_purity)
+# myannot_dt <- annot_dt[,c("labs_for_purity", "cgc_case_clinical_stage")]
+# myannot_dt <- unique(myannot_dt)
+# # myannot_dt$labs_for_purity <- gsub("-", ".", myannot_dt$labs_for_purity)
+# stopifnot(any(colnames(expr_dt) %in% myannot_dt$labs_for_purity))
+# stopifnot(!duplicated(myannot_dt$labs_for_purity))
+# labs2stage <- setNames(myannot_dt$cgc_case_clinical_stage, myannot_dt$labs_for_purity)
 
 all_annot_dt <- data.frame(
   sampleID = colnames(expr_dt),
   annot =NA,
   stringsAsFactors = FALSE
 )
-all_annot_dt$annot <- labs2stage[all_annot_dt$sampleID]
-all_annot_dt$annot[grep("GTEX", all_annot_dt$sampleID)] <- "norm"
-stopifnot(sum(na.omit(all_annot_dt$annot) == "norm" ) == nGTEX)
+all_annot_dt$annot <- samp2pam[all_annot_dt$sampleID]
+stopifnot(!is.na(all_annot_dt$annot))
+all_annot_dt$brca_pseudotimes <- brca_pseudotimes[all_annot_dt$sampleID]
 
-all_annot_dt$ov_pseudotimes <- ov_pseudotimes[all_annot_dt$sampleID]
+stopifnot(!is.na(all_annot_dt$brca_pseudotimes))
 
-stopifnot(!is.na(all_annot_dt$ov_pseudotimes))
 
-# 
-# ggplot(data=all_annot_dt, aes(x=annot, y=ov_pseudotimes))+
-#   geom_boxplot()
-# 
-pbox <- ggplot(data=all_annot_dt, aes(x=annot, y=ov_pseudotimes))+
+pbox <- ggplot(data=all_annot_dt, aes(x=annot, y=brca_pseudotimes))+
   geom_boxplot(notch = F, outlier.shape=NA)+
   geom_jitter(aes(col=annot),alpha=0.7,position=position_jitterdodge())+
   ggtitle(paste0("ND pseudotime"),
-          subtitle = paste0("#GTEX=", nGTEX, "; #TCGA=", nTCGA))+
+          subtitle = paste0("#lumA=", nLumA, "; #lumB=", nLumB))+
   scale_y_continuous(breaks = scales::pretty_breaks(n = 10))+
   guides(color=FALSE)+
   xlab(paste0(""))+
   ylab(paste0("Pseudotime"))+
   myG_theme +
   labs(color="")
-outFile <- file.path(outFolder, paste0("norm_tumorStages_pseudotime_boxplot.", plotType))
+outFile <- file.path(outFolder, paste0("lumA_lumB_pseudotime_boxplot.", plotType))
 ggsave(pbox, filename = outFile, height=myHeightGG, width=myWidthGG)
 cat(paste0("... written: ", outFile, "\n"))
 
 
-
-
-
 pca_ov <- prcomp(exprT_dt, scale=TRUE)
 pca_ov_lowrepr <- pca_ov$x
-stopifnot(nrow(pca_ov_lowrepr) == nGTEX+nTCGA)
+stopifnot(nrow(pca_ov_lowrepr) == nLumB+nLumA)
 
+mycond <- ifelse(rownames(pca_ov_lowrepr)%in% lumA_samps, "lumA", 
+                 ifelse(rownames(pca_ov_lowrepr)%in% lumB_samps, "lumB", NA))
+stopifnot(!is.na(mycond))
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(2,3), summ_dt=summary(pca_ov),
-                 condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-                 colvect=ov_pseudotimes,
-                 mytit = paste0("TCGA+GTEX OV ND input data(log_filtNormCount_mostVar)"),
-                 mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+                 condvect = mycond,
+                 colvect=brca_pseudotimes,
+                 mytit = paste0("TCGA BRCA ND input data(log_filtNormCount_mostVar)"),
+                 mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_23_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -133,10 +133,10 @@ cat(paste0("... written: ", outFile, "\n"))
 
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(1,2), summ_dt=summary(pca_ov),
-                 condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-                 colvect=ov_pseudotimes,
-                 mytit = paste0("TCGA+GTEX OV ND input data(log_filtNormCount_mostVar)"),
-                 mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+                 condvect = mycond,
+                 colvect=brca_pseudotimes,
+                 mytit = paste0("TCGA BRCA ND input data(log_filtNormCount_mostVar)"),
+                 mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_12_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -145,10 +145,10 @@ cat(paste0("... written: ", outFile, "\n"))
 
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(1,3), summ_dt=summary(pca_ov),
-                 condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-                 colvect=ov_pseudotimes,
-                 mytit = paste0("TCGA+GTEX OV ND input data(log_filtNormCount_mostVar)"),
-                 mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+                 condvect = mycond,
+                 colvect=brca_pseudotimes,
+                 mytit = paste0("TCGA BRCA ND input data(log_filtNormCount_mostVar)"),
+                 mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_13_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -158,34 +158,38 @@ cat(paste0("... written: ", outFile, "\n"))
 ################################### 
 # look at how it compares with phenopath results
 require(phenopath)
-pheno_indt <- get(load("../../ovarian_project/phenopath/PHENOPATH_RECOUNT2_TCGA_OV/ov_data_filtered.Rdata"))
-pheno_pt <- get(load("../../ovarian_project/phenopath/PHENOPATH_RECOUNT2_TCGA_OV/ov_phenopath_fit.Rdata"))
+pheno_indt <- get(load("../../ovarian_project/phenopath/PHENOPATH_RECOUNT2_TCGA_BRCA_LUMALUMB/brca_data_filtered.Rdata"))
+pheno_pt <- get(load("../../ovarian_project/phenopath/PHENOPATH_RECOUNT2_TCGA_BRCA_LUMALUMB//brca_phenopath_fit.Rdata"))
 pheno_traj <- trajectory(pheno_pt)
 stopifnot(ncol(pheno_indt) == length(pheno_traj))
 
 names(pheno_traj) <- colnames(pheno_indt)
 
-stopifnot(setequal(names(ov_pseudotimes), names(pheno_traj)))
+stopifnot(setequal(names(brca_pseudotimes), names(pheno_traj)))
+
+mycond2<- ifelse(names(brca_pseudotimes) %in% lumA_samps, "lumA", 
+                 ifelse(names(brca_pseudotimes)  %in% lumB_samps, "lumB", NA))
+stopifnot(!is.na(mycond2))
 
 outFile <- file.path(outFolder, paste0("pseudotimes_ND_vs_phenopath.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(
-  x = ov_pseudotimes,
-  y = pheno_traj[names(ov_pseudotimes)],
+  x = brca_pseudotimes,
+  y = pheno_traj[names(brca_pseudotimes)],
   xlab="Pseudotimes - ND",
   ylab="Pseudotimes - Phenopath",
-  col = as.numeric(grepl("TCGA", names(ov_pseudotimes))) +1, 
+  col = as.numeric(mycond2 == "lumA") +1, 
   pch=16,
   cex=0.7
 )
-legend("topleft", legend=c("TCGA", "GTEX"), col=c(2,1), pch=16, bty="n")
+legend("topleft", legend=c("lumA", "lumB"), col=c(2,1), pch=16, bty="n")
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
 
 ################################### 
 # look correlations with stages
-all_traj <- ov_pseudotimes
+all_traj <- brca_pseudotimes
 # stopifnot(names(all_traj) == c(gtex_annot_dt$sampid, tcga_annot_dt$cgc_sample_id))
 
 ############### TCGA data
@@ -203,79 +207,6 @@ all_traj <- ov_pseudotimes
 # > histologic name and gdc_cases.project .name grep serous
 # Error: unexpected symbol in "histologic name"
 # > sampletypeID
-
-
-myplotlab <- "tumor stage"
-stg_ords <-c(  "Stage IC", "Stage IIA" ,"Stage IIB" , "Stage IIC","Stage IIIA", "Stage IIIB","Stage IIIC",   "Stage IV")
-p <- plot_pheno_catego(tcga_annot_dt,  
-                       pt_traj = all_traj, 
-                       plotvar= "cgc_case_clinical_stage", plotxlab=paste0("TCGA HGSC ", myplotlab), varords=stg_ords)
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-
-
-
-myplotlab <- "year of birth"
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "gdc_cases.demographic.year_of_birth", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-myplotlab <- "days to death"
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "cgc_case_days_to_death", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-myplotlab <- "diag. days to birth"
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "gdc_cases.diagnoses.days_to_birth", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-
-myplotlab <- "age at diag."
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "gdc_cases.diagnoses.age_at_diagnosis", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-myplotlab <- "slide pct normal cells"
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "cgc_slide_percent_normal_cells", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-myplotlab <- "slide pct neutrophil infilt."
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "cgc_slide_percent_neutrophil_infiltration", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-myplotlab <- "slide pct monocyte infilt."
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "cgc_slide_percent_monocyte_infiltration", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-
-myplotlab <- "slide pct lymphocyt infilt."
-p <- plot_pheno_continuous(tcga_annot_dt,  pt_traj = all_traj, plotvar= "cgc_slide_percent_lymphocyte_infiltration", plotxlab=paste0("TCGA HGSC ", myplotlab))
-outFile <- file.path(outFolder, paste0("boxplot_pseudotimes_by_", paste0(gsub(" ", "_",myplotlab)),"_TCGA.", plotType))
-ggsave(plot = p, filename = outFile, height=myHeightGG, width = myWidthGG)
-cat(paste0("... written: ", outFile, "\n"))
-
-
-
-
-
-
-
-
-
-
 
 stop("--ok\n")
 
@@ -419,7 +350,7 @@ httr::set_config(httr::config(ssl_verifypeer = FALSE))  ### added to access ense
 ov_data_filtered <- get(load(file.path(outFolder, "ov_data_filtered.Rdata")))
 ov_data_filteredT <- t(ov_data_filtered)
 ov_phenopath_fit <- get(load(file.path(outFolder, "ov_phenopath_fit.Rdata")))
-ov_pseudotimes <-  trajectory(ov_phenopath_fit)
+brca_pseudotimes <-  trajectory(ov_phenopath_fit)
 
 gene_names <- colnames(ov_data_filteredT)
 df_beta <- data.frame(beta = interaction_effects(ov_phenopath_fit),
@@ -642,8 +573,8 @@ if(runNorm) {
 
 ov_data_gcNorm_log <- log2(ov_dat_gcNorm + 1)
 
-nGTEX <- sum(grepl("^GTEX", colnames(ov_data_gcNorm_log)))
-nTCGA <- sum(grepl("^TCGA", colnames(ov_data_gcNorm_log)))
+nLumB <- sum(grepl("^GTEX", colnames(ov_data_gcNorm_log)))
+nLumA <- sum(grepl("^TCGA", colnames(ov_data_gcNorm_log)))
 
 ################################### 
 ################################### PCA ON not norm DATA -> for comparison
@@ -655,7 +586,7 @@ ov_data_notNorm_log_no0 <- ov_data_notNorm_log[rowSums(ov_data_notNorm_log) > 0,
 
 pca_ov <- prcomp(t(ov_data_notNorm_log_no0), scale=TRUE)
 pca_ov_lowrepr <- pca_ov$x
-stopifnot(nrow(pca_ov_lowrepr) == nGTEX+nTCGA)
+stopifnot(nrow(pca_ov_lowrepr) == nLumB+nLumA)
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_12_tcga_gtex.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
@@ -664,7 +595,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(pca_ov),
         main="TCGA+GTEX OV notNorm (log2(.+1))",
         col=1+as.numeric(grepl("TCGA", rownames(pca_ov_lowrepr))))
-mtext(text=paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA), side=3)
+mtext(text=paste0("nLumB=",nLumB, "; nLumA=",nLumA), side=3)
 legend("topleft", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
 dev.off()
 cat(paste0("... written: ", outFile, "\n"))
@@ -675,7 +606,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(pca_ov),
         main="TCGA+GTEX OV notNorm (log2(.+1))",
         col=1+as.numeric(grepl("TCGA", rownames(pca_ov_lowrepr))))
-mtext(text=paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA), side=3)
+mtext(text=paste0("nLumB=",nLumB, "; nLumA=",nLumA), side=3)
 legend("topleft", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
 dev.off()
 cat(paste0("... written: ", outFile, "\n"))
@@ -696,7 +627,7 @@ tcga_raw_data_log <- tcga_raw_data_log[rowSums(tcga_raw_data_log) > 0,]
 # also scaled in https://kieranrcampbell.github.io/phenopath/phenopath_shalek_vignette.html
 tcga_pca_ov <- prcomp(t(tcga_raw_data_log), scale=TRUE)
 tcga_pca_ov_lowrepr <- tcga_pca_ov$x
-stopifnot(nrow(tcga_pca_ov_lowrepr) == nTCGA)
+stopifnot(nrow(tcga_pca_ov_lowrepr) == nLumA)
 
 stopifnot(tcga_annot_dt$cgc_sample_id == colnames(tcga_raw_data_log))
 tcga_annot_dt$cgc_sample_tissue_source_site_fact <- as.factor(tcga_annot_dt$cgc_sample_tissue_source_site)
@@ -708,7 +639,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=tcga_pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(tcga_pca_ov),
         col = tcga_annot_dt$cgc_sample_tissue_source_site_fact,
         main="TCGA OV notNorm (log2(.+1))")
-mtext(text=paste0("nTCGA=",nTCGA, " (color-coded by tissue source site)"), side=3)
+mtext(text=paste0("nLumA=",nLumA, " (color-coded by tissue source site)"), side=3)
 legend("topleft", legend=c("color-code source site"), bty="n")
 # apparently there is no batch effect
 dev.off()
@@ -720,7 +651,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=tcga_pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(tcga_pca_ov),
         col = tcga_annot_dt$cgc_sample_tissue_source_site_fact,
         main="TCGA OV notNorm (log2(.+1))")
-mtext(text=paste0("nTCGA=",nTCGA, " (color-coded by tissue source site)"), side=3)
+mtext(text=paste0("nLumA=",nLumA, " (color-coded by tissue source site)"), side=3)
 legend("topleft", legend=c("color-code source site"), bty="n")
 # apparently there is no batch effect
 dev.off()
@@ -730,7 +661,7 @@ cat(paste0("... written: ", outFile, "\n"))
 # do I have batch effect within gtex
 gtex_pca_ov <- prcomp(t(gtex_raw_data_log), scale=TRUE)
 gtex_pca_ov_lowrepr <- gtex_pca_ov$x
-stopifnot(nrow(gtex_pca_ov_lowrepr) == nGTEX)
+stopifnot(nrow(gtex_pca_ov_lowrepr) == nLumB)
 
 
 #dev.off()
@@ -738,7 +669,7 @@ outFile <- file.path(outFolder, paste0("in_raw_data_gtex_pca_12.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(gtex_pca_ov),
         main="GTEX OV notNorm (log2(.+1))")
-mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+mtext(text=paste0("nLumB=",nLumB, ""), side=3)
 #legend("topleft", legend=c("color-code source site"), bty="n")
 # here there is an issue with one guy !!!
 dev.off()
@@ -749,7 +680,7 @@ outFile <- file.path(outFolder, paste0("in_raw_data_gtex_pca_23.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(gtex_pca_ov),
         main="GTEX OV notNorm (log2(.+1))")
-mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+mtext(text=paste0("nLumB=",nLumB, ""), side=3)
 #legend("topleft", legend=c("color-code source site"), bty="n")
 # here there is an issue with one guy !!!
 dev.off()
@@ -777,7 +708,7 @@ gtex_data_log <- gtex_data_log[rowSums(gtex_data_log) > 0,]
 # also scaled in https://kieranrcampbell.github.io/phenopath/phenopath_shalek_vignette.html
 tcga_pca_ov <- prcomp(t(tcga_data_log), scale=TRUE)
 tcga_pca_ov_lowrepr <- tcga_pca_ov$x
-stopifnot(nrow(tcga_pca_ov_lowrepr) == nTCGA)
+stopifnot(nrow(tcga_pca_ov_lowrepr) == nLumA)
 
 stopifnot(tcga_annot_dt$cgc_sample_id == colnames(tcga_data_log))
 tcga_annot_dt$cgc_sample_tissue_source_site_fact <- as.factor(tcga_annot_dt$cgc_sample_tissue_source_site)
@@ -788,7 +719,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=tcga_pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(tcga_pca_ov),
         col = tcga_annot_dt$cgc_sample_tissue_source_site_fact,
         main="TCGA OV (log2(.+1))")
-mtext(text=paste0("nTCGA=",nTCGA, " (color-coded by tissue source site)"), side=3)
+mtext(text=paste0("nLumA=",nLumA, " (color-coded by tissue source site)"), side=3)
 legend("topleft", legend=c("color-code source site"), bty="n")
 # apparently there is no batch effect
 dev.off()
@@ -800,7 +731,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=tcga_pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(tcga_pca_ov),
         col = tcga_annot_dt$cgc_sample_tissue_source_site_fact,
         main="TCGA OV (log2(.+1))")
-mtext(text=paste0("nTCGA=",nTCGA, " (color-coded by tissue source site)"), side=3)
+mtext(text=paste0("nLumA=",nLumA, " (color-coded by tissue source site)"), side=3)
 legend("topleft", legend=c("color-code source site"), bty="n")
 # apparently there is no batch effect
 dev.off()
@@ -810,7 +741,7 @@ cat(paste0("... written: ", outFile, "\n"))
 # do I have batch effect within gtex
 gtex_pca_ov <- prcomp(t(gtex_data_log), scale=TRUE)
 gtex_pca_ov_lowrepr <- gtex_pca_ov$x
-stopifnot(nrow(gtex_pca_ov_lowrepr) == nGTEX)
+stopifnot(nrow(gtex_pca_ov_lowrepr) == nLumB)
 
 
 #dev.off()
@@ -818,7 +749,7 @@ outFile <- file.path(outFolder, paste0("in_data_gtex_pca_12.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(gtex_pca_ov),
      main="GTEX OV (log2(.+1))")
-mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+mtext(text=paste0("nLumB=",nLumB, ""), side=3)
 #legend("topleft", legend=c("color-code source site"), bty="n")
 # here there is an issue with one guy !!!
 dev.off()
@@ -830,7 +761,7 @@ outFile <- file.path(outFolder, paste0("in_data_gtex_pca_23.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(gtex_pca_ov),
       main="GTEX OV (log2(.+1))")
-mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+mtext(text=paste0("nLumB=",nLumB, ""), side=3)
 #legend("topleft", legend=c("color-code source site"), bty="n")
 # apparently there is no batch effect
 dev.off()
@@ -846,10 +777,10 @@ cat(paste0("... written: ", outFile, "\n"))
                     # 
                     # # remove it from everywhere
                     # ov_data_gcNorm_log <- ov_data_gcNorm_log[,colnames(ov_data_gcNorm_log) != pc2_outlier]
-                    # stopifnot(ncol(ov_data_gcNorm_log) == nGTEX + nTCGA -1)
-                    # nGTEX <- nGTEX -1 
+                    # stopifnot(ncol(ov_data_gcNorm_log) == nLumB + nLumA -1)
+                    # nLumB <- nLumB -1 
                     # gtex_data_log <- ov_data_gcNorm_log[,grep("^GTEX", colnames(ov_data_gcNorm_log))]
-                    # stopifnot(ncol(gtex_data_log) == nGTEX)
+                    # stopifnot(ncol(gtex_data_log) == nLumB)
                     # gtex_annot_dt <- gtex_annot_dt[gtex_annot_dt$sampid != pc2_outlier,]
                     # stopifnot(gtex_annot_dt$sampid == colnames(gtex_data_log))
                     # 
@@ -859,14 +790,14 @@ cat(paste0("... written: ", outFile, "\n"))
                     # # do I have batch effect within gtex
                     # gtex_pca_ov <- prcomp(t(gtex_data_log), scale=TRUE)
                     # gtex_pca_ov_lowrepr <- gtex_pca_ov$x
-                    # stopifnot(nrow(gtex_pca_ov_lowrepr) == nGTEX)
+                    # stopifnot(nrow(gtex_pca_ov_lowrepr) == nLumB)
                     # 
                     # #dev.off()
                     # outFile <- file.path(outFolder, paste0("in_data_gtex_pca_12_no_outlier.", plotType))
                     # do.call(plotType, list(outFile, height=myHeight, width=myWidth))
                     # pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(gtex_pca_ov),
                     #         main="GTEX OV (log2(.+1))")
-                    # mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+                    # mtext(text=paste0("nLumB=",nLumB, ""), side=3)
                     # #legend("topleft", legend=c("color-code source site"), bty="n")
                     # # here there is an issue with one guy !!!
                     # dev.off()
@@ -877,7 +808,7 @@ cat(paste0("... written: ", outFile, "\n"))
                     # do.call(plotType, list(outFile, height=myHeight, width=myWidth))
                     # pcaplot(pca_dt=gtex_pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(gtex_pca_ov),
                     #         main="GTEX OV (log2(.+1))")
-                    # mtext(text=paste0("nGTEX=",nGTEX, ""), side=3)
+                    # mtext(text=paste0("nLumB=",nLumB, ""), side=3)
                     # #legend("topleft", legend=c("color-code source site"), bty="n")
                     # # apparently there is no batch effect
                     # dev.off()
@@ -1001,11 +932,11 @@ cat(paste0("... written: ", outFile, "\n"))
 # so I have to take the transpose of my ov_data_log_matrix to have samples in line and genes in columns
 ov_data_filteredT <- t(ov_data_filtered)
 stopifnot(nGenes == ncol(ov_data_filteredT))
-stopifnot(nGTEX+nTCGA == nrow(ov_data_filteredT))
+stopifnot(nLumB+nLumA == nrow(ov_data_filteredT))
 
 pca_ov <- prcomp(ov_data_filteredT, scale=TRUE)
 pca_ov_lowrepr <- pca_ov$x
-stopifnot(nrow(pca_ov_lowrepr) == nGTEX+nTCGA)
+stopifnot(nrow(pca_ov_lowrepr) == nLumB+nLumA)
 
 pc1 <- pca_ov_lowrepr[,1]
 pc2 <- pca_ov_lowrepr[,2]
@@ -1018,7 +949,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=pca_ov_lowrepr, pctoplot=c(1,2), summ_dt=summary(pca_ov),
         main="TCGA+GTEX OV (log2(.+1))",
         col=1+as.numeric(grepl("TCGA", rownames(pca_ov_lowrepr))))
-mtext(text=paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA), side=3)
+mtext(text=paste0("nLumB=",nLumB, "; nLumA=",nLumA), side=3)
 legend("topleft", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
 dev.off()
 cat(paste0("... written: ", outFile, "\n"))
@@ -1029,7 +960,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 pcaplot(pca_dt=pca_ov_lowrepr, pctoplot=c(2,3), summ_dt=summary(pca_ov),
         main="TCGA+GTEX OV (log2(.+1))",
         col=1+as.numeric(grepl("TCGA", rownames(pca_ov_lowrepr))))
-mtext(text=paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA), side=3)
+mtext(text=paste0("nLumB=",nLumB, "; nLumA=",nLumA), side=3)
 legend("topleft", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
 dev.off()
 cat(paste0("... written: ", outFile, "\n"))
@@ -1055,11 +986,11 @@ cat(paste0("... written: ", outFile, "\n"))
 
 
 # phenopath needs a cell-by-gene matrix = N×G matrix of gene expression (N=samples, G = genes)
-stopifnot(nrow(ov_data_filteredT) == nGTEX+nTCGA)
+stopifnot(nrow(ov_data_filteredT) == nLumB+nLumA)
 stopifnot(ncol(ov_data_filteredT) == nGenes)
 mycovar <- 2 * grepl("^TCGA", rownames(ov_data_filteredT)) - 1
-stopifnot(sum(mycovar== -1) == nGTEX)
-stopifnot(sum(mycovar== 1) == nTCGA)
+stopifnot(sum(mycovar== -1) == nLumB)
+stopifnot(sum(mycovar== 1) == nLumA)
 stopifnot(!is.na(mycovar))
 
 if(runPheno) {
@@ -1092,7 +1023,7 @@ cat(paste0("... written: ", outFile, "\n"))
 ####### retrieve the pseudotimes
 # maximum a-posteriori (MAP) estimates of the pseudotimes using the trajectory()
 
-ov_pseudotimes <-  trajectory(ov_phenopath_fit)
+brca_pseudotimes <-  trajectory(ov_phenopath_fit)
  
 ############## correlation with PCs ##############
 ### look if the pseudotimes correlate with the PCs
@@ -1102,36 +1033,36 @@ ov_pseudotimes <-  trajectory(ov_phenopath_fit)
 outFile <- file.path(outFolder, paste0("corr_pseudotimes_pc1.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(x = pc1, 
-     y = ov_pseudotimes,
+     y = brca_pseudotimes,
      xlab = "PC1", ylab="PP Pseudotimes z",
      col = mycovar+3,
      pch=16, cex=0.7,
      cex.lab = 1.2, cex.axis=1.2)
-add_corr(pc1, ov_pseudotimes)
+add_corr(pc1, brca_pseudotimes)
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
 outFile <- file.path(outFolder, paste0("corr_pseudotimes_pc2.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(x = pc2, 
-     y = ov_pseudotimes,
+     y = brca_pseudotimes,
      xlab = "PC2", ylab="PP Pseudotimes z",
      col = mycovar+3,
      pch=16, cex=0.7,
      cex.lab = 1.2, cex.axis=1.2)
-add_corr(pc2, ov_pseudotimes)
+add_corr(pc2, brca_pseudotimes)
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
 outFile <- file.path(outFolder, paste0("corr_pseudotimes_pc3.", plotType))
 do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(x = pc3, 
-     y = ov_pseudotimes,
+     y = brca_pseudotimes,
      xlab = "PC3", ylab="PP Pseudotimes z",
      col = mycovar+3,
      pch=16, cex=0.7,
      cex.lab = 1.2, cex.axis=1.2)
-add_corr(pc3, ov_pseudotimes)
+add_corr(pc3, brca_pseudotimes)
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
@@ -1214,7 +1145,7 @@ df_beta$geneSymb <- ens2genes[df_beta$gene]
 
 p <- plot_iGeneExpr(igene= which.max(df_beta$beta),
                exprdt=ov_data_filteredT,
-               pseudot=ov_pseudotimes,
+               pseudot=brca_pseudotimes,
                covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                valuedt=df_beta,
                valuecol="beta", symbcol="geneSymb", subtit=paste0("highest ", betaU))
@@ -1225,7 +1156,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr_gg2(igene= which.max(df_beta$beta),
                     exprdt=ov_data_filteredT,
-                    pseudot=ov_pseudotimes,
+                    pseudot=brca_pseudotimes,
                     covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                     valuedt=df_beta,
                     valuecol="beta", symbcol="geneSymb", subtit=paste0("highest ", betaU))
@@ -1238,7 +1169,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr(igene= which.min(df_beta$beta),
                exprdt=ov_data_filteredT,
-               pseudot=ov_pseudotimes,
+               pseudot=brca_pseudotimes,
                covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                valuedt=df_beta,
                            valuecol="beta", symbcol="geneSymb", subtit=paste0("lowest ", betaU))
@@ -1249,7 +1180,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr_gg2(igene= which.min(df_beta$beta),
                     exprdt=ov_data_filteredT,
-                    pseudot=ov_pseudotimes,
+                    pseudot=brca_pseudotimes,
                     covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                     valuedt=df_beta,
                     valuecol="beta", symbcol="geneSymb", subtit=paste0("lowest ", betaU))
@@ -1299,7 +1230,7 @@ for(i in 1:length(top_gs)) {
   
   p <- plot_iGeneExpr_gg2(igene= i_gs,
                           exprdt=ov_data_filteredT,
-                          pseudot=ov_pseudotimes,
+                          pseudot=brca_pseudotimes,
                           covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                           valuedt=df_beta,
                           valuecol="beta", symbcol="geneSymb", 
@@ -1347,7 +1278,7 @@ for(i in 1:length(top_gs)) {
   
   p <- plot_iGeneExpr_gg2(igene= i_gs,
                           exprdt=ov_data_filteredT,
-                          pseudot=ov_pseudotimes,
+                          pseudot=brca_pseudotimes,
                           covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                           valuedt=df_beta,
                           valuecol="beta", symbcol="geneSymb", 
@@ -1375,7 +1306,7 @@ table(tcga_annot_dt$cgc_slide_percent_tumor_cells)
 stopifnot(rownames(ov_data_filteredT) == c(gtex_annot_dt$sampid, tcga_annot_dt$cgc_sample_id))
 
 
-all_traj <- setNames(ov_pseudotimes, rownames(ov_data_filteredT))
+all_traj <- setNames(brca_pseudotimes, rownames(ov_data_filteredT))
 stopifnot(names(all_traj) == c(gtex_annot_dt$sampid, tcga_annot_dt$cgc_sample_id))
 
 ############### TCGA data
@@ -1631,7 +1562,7 @@ stopifnot(tmp1$featureSymb == tmp2$geneSymb)
 
 p <- plot_iGeneExpr(igene= which.min(int_dt$pathway_loading),
                                  exprdt=ov_data_filteredT,
-                                 pseudot=ov_pseudotimes,
+                                 pseudot=brca_pseudotimes,
                                  covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                                  valuedt=int_dt,
                                              valuecol="pathway_loading", symbcol="featureSymb", subtit=paste0("lowest ", lambdaU))
@@ -1642,7 +1573,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr_gg2(igene= which.min(int_dt$pathway_loading),
                     exprdt=ov_data_filteredT,
-                    pseudot=ov_pseudotimes,
+                    pseudot=brca_pseudotimes,
                     covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                     valuedt=int_dt,
                     valuecol="pathway_loading", symbcol="featureSymb", subtit=paste0("lowest ", lambdaU))
@@ -1654,7 +1585,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr(igene= which.max(int_dt$pathway_loading),
                exprdt=ov_data_filteredT,
-               pseudot=ov_pseudotimes,
+               pseudot=brca_pseudotimes,
                covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                valuedt=int_dt,
                valuecol="pathway_loading", symbcol="featureSymb", subtit=paste0("highest ", lambdaU))
@@ -1666,7 +1597,7 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- plot_iGeneExpr_gg2(igene= which.max(int_dt$pathway_loading),
                     exprdt=ov_data_filteredT,
-                    pseudot=ov_pseudotimes,
+                    pseudot=brca_pseudotimes,
                     covarlab=ifelse(mycovar == 1, "TCGA", "GTEX"),
                     valuedt=int_dt,
                     valuecol="pathway_loading", symbcol="featureSymb", subtit=paste0("highest ", lambdaU))
@@ -1721,9 +1652,9 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(2,3), summ_dt=summary(pca_ov),
             condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-            colvect=ov_pseudotimes,
+            colvect=brca_pseudotimes,
             mytit = paste0("TCGA+GTEX OV notNorm (log2(.+1))"),
-            mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+            mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_23_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -1732,9 +1663,9 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(1,2), summ_dt=summary(pca_ov),
             condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-            colvect=ov_pseudotimes,
+            colvect=brca_pseudotimes,
             mytit = paste0("TCGA+GTEX OV notNorm (log2(.+1))"),
-            mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+            mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_12_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -1744,9 +1675,9 @@ cat(paste0("... written: ", outFile, "\n"))
 
 p <- pcaplot_gg2(pca_dt=data.frame(pca_ov_lowrepr), pctoplot=c(1,3), summ_dt=summary(pca_ov),
                  condvect = gsub("(^.+?)-.+", "\\1", rownames(pca_ov_lowrepr)),
-                 colvect=ov_pseudotimes,
+                 colvect=brca_pseudotimes,
                  mytit = paste0("TCGA+GTEX OV notNorm (log2(.+1))"),
-                 mysubtit = paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA))
+                 mysubtit = paste0("nLumB=",nLumB, "; nLumA=",nLumA))
 
 outFile <- file.path(outFolder, paste0("in_raw_data_pca_13_pseudotimeGrad_tcga_gtex.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG*0.9, width=myWidthGG*1.5)
@@ -1777,7 +1708,7 @@ cat(paste0("... written: ", outFile, "\n"))
 pp_input_data <- ov_data_filteredT
 
 all_genes <- colnames(pp_input_data) # ensemblID
-corr_expr_pt <- apply(pp_input_data, 2, cor, ov_pseudotimes)
+corr_expr_pt <- apply(pp_input_data, 2, cor, brca_pseudotimes)
 cdf <- data.frame(feature = all_genes, 
                   correlation = corr_expr_pt)
 stopifnot(!is.na(cdf))
@@ -1789,18 +1720,18 @@ mtext(side=3, text="(all samples; # = ", nrow(cdf), ")")
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
-stopifnot(length(ov_pseudotimes) == nrow(pp_input_data))
+stopifnot(length(brca_pseudotimes) == nrow(pp_input_data))
 
 tcga_samp <- grep("^TCGA", rownames(pp_input_data))
-stopifnot(length(tcga_samp) == nTCGA)
-corr_expr_pt_tcga <- apply(pp_input_data[tcga_samp,], 2, cor, ov_pseudotimes[tcga_samp])
+stopifnot(length(tcga_samp) == nLumA)
+corr_expr_pt_tcga <- apply(pp_input_data[tcga_samp,], 2, cor, brca_pseudotimes[tcga_samp])
 cdf_tcga <- data.frame(feature = all_genes, 
                   correlation = corr_expr_pt_tcga)
 stopifnot(!is.na(cdf_tcga))
 
 gtex_samp <- grep("^GTEX", rownames(pp_input_data))
-stopifnot(length(gtex_samp) == nGTEX)
-corr_expr_pt_gtex <- apply(pp_input_data[gtex_samp,], 2, cor, ov_pseudotimes[gtex_samp])
+stopifnot(length(gtex_samp) == nLumB)
+corr_expr_pt_gtex <- apply(pp_input_data[gtex_samp,], 2, cor, brca_pseudotimes[gtex_samp])
 to_keep <- which(!is.na(corr_expr_pt_gtex))  ### there is 2 genes with all 0 values !!! -> cannot compute corr
 cdf_gtex <- data.frame(feature = all_genes[to_keep], 
                        correlation = corr_expr_pt_gtex[to_keep])
@@ -1812,7 +1743,7 @@ do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(density(cdf_tcga$correlation), main="corr. gene expr. and pseudotimes", col=2)
 lines(density(cdf_gtex$correlation), col=1)
 legend("topright", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
-mtext(side=3, text=paste0("(# GTEX=", nGTEX, "; # TCGA=", nTCGA, ")"))
+mtext(side=3, text=paste0("(# GTEX=", nLumB, "; # TCGA=", nLumA, ")"))
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
@@ -2171,7 +2102,7 @@ gtex_data_log_norm <- apply(gtex_data_log, 2, function(x) (x- min(x)) / (max(x)-
 ov_data_log_norm <- cbind(tcga_data_log_norm, gtex_data_log_norm)
 pca_ov_norm <- prcomp(t(ov_data_log_norm), scale=TRUE)
 pca_ov_norm_lowrepr <- pca_ov_norm$x
-stopifnot(nrow(pca_ov_norm_lowrepr) == nGTEX+nTCGA)
+stopifnot(nrow(pca_ov_norm_lowrepr) == nLumB+nLumA)
 
 dev.off()
 plot(x = pca_ov_norm_lowrepr[,1],
@@ -2180,7 +2111,7 @@ plot(x = pca_ov_norm_lowrepr[,1],
      main="TCGA+GTEX OV (log2(.+1))",
      pch=16,
      col=1+as.numeric(grepl("TCGA", rownames(pca_ov_norm_lowrepr))))
-mtext(text=paste0("nGTEX=",nGTEX, "; nTCGA=",nTCGA), side=3)
+mtext(text=paste0("nLumB=",nLumB, "; nLumA=",nLumA), side=3)
 legend("topleft", legend=c("GTEX", "TCGA"), pch=16, col=c(1,2), bty="n")
 
 
@@ -2205,7 +2136,7 @@ sub_gene_lab_dt[sub_gene_lab_dt$geneID_short == df_beta$gene[which_largest],]
 df_large <- data.frame(
   y = ov_data_filteredT[, which_lowest],
   x = mycovar,
-  z = ov_pseudotimes
+  z = brca_pseudotimes
 )
 
 #dev.off()
@@ -2229,7 +2160,7 @@ beta_topGene <- df_beta$geneSymb[which_largest]
 df_large <- data.frame(
   y = ov_data_filteredT[, which_largest],
   x = mycovar,
-  z = ov_pseudotimes
+  z = brca_pseudotimes
 )
 
 #dev.off()
